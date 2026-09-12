@@ -39,6 +39,17 @@ counts() {
 }
 skips() { grep -cE "Test Case .* skipped" "$1" 2>/dev/null || true; }
 
+# Layout-parity tests read a consumer capture that lives outside the repo. Point the tests at it
+# only when it is really there; otherwise they skip with a named reason.
+PARITY_CANDIDATE="${LIEDAR_PARITY_CAPTURE:-$HOME/git/meshwise/samples/full}"
+if [ -f "$PARITY_CANDIDATE/capture.json" ]; then
+  export LIEDAR_PARITY_CAPTURE="$PARITY_CANDIDATE"
+  echo "== parity capture: $LIEDAR_PARITY_CAPTURE =="
+else
+  unset LIEDAR_PARITY_CAPTURE
+  echo "== parity capture: none (LayoutParityTests will skip) =="
+fi
+
 echo "== xcode =="; xcodebuild -version | tr '\n' ' '; echo
 swift --version 2>&1 | head -1 | sed 's/^/   /'
 

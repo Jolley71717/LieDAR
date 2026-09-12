@@ -23,11 +23,13 @@ xcrun simctl boot "$UDID" >/dev/null 2>&1 || { echo "RESULT: BLOCKED simctl boot
 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || { echo "RESULT: BLOCKED simulator never reported booted"; exit 2; }
 echo "   booted"
 echo "== host Metal device =="
-cat > /tmp/liedar-metal-probe.swift <<'SWIFT'
+PROBE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/liedar-metal-probe.XXXXXX")" || { echo "RESULT: BLOCKED mktemp failed"; exit 2; }
+trap 'cleanup; rm -rf "$PROBE_DIR"' EXIT
+cat > "$PROBE_DIR/probe.swift" <<'SWIFT'
 import Metal
 if let d = MTLCreateSystemDefaultDevice() { print("METAL_DEVICE=\(d.name)") } else { print("METAL_DEVICE=none") }
 SWIFT
-OUT="$(swiftc -O /tmp/liedar-metal-probe.swift -o /tmp/liedar-metal-probe 2>&1 && /tmp/liedar-metal-probe 2>&1 || echo METAL_DEVICE=compile-failed)"
+OUT="$(swiftc -O "$PROBE_DIR/probe.swift" -o "$PROBE_DIR/probe" 2>&1 && "$PROBE_DIR/probe" 2>&1 || echo METAL_DEVICE=compile-failed)"
 echo "   $OUT"
 case "$OUT" in
   *METAL_DEVICE=none*|*compile-failed*) echo "RESULT: BLOCKED simulator boots but the host has no Metal device — GPU-dependent tests will skip; CPU-raycaster tests still valid"; exit 2 ;;
