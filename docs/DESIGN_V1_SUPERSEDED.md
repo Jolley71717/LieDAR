@@ -100,8 +100,7 @@ for the same simulator, the same files, and the same attention.
 Facts checked directly, not assumed. The red-team pass and the re-plan start from these.
 
 - **GitHub account.** `gh` is signed in as **`Jolley71717`**, whose account email is
-  duttonluke03@gmail.com — Luke's personal account under a different login than the email
-  suggests. The repo goes at `github.com/Jolley71717/<name>`, public, per Luke. Token scopes
+  (account email withheld) — Luke's personal account under a different login than the email
   include `repo`; git protocol is SSH. That account has 30 public repos already.
 - **Name collisions.** Under `Jolley71717`, `LiDARSim`, `lidarsim`, `lidar-sim`, `LiDARKitSim` and
   `ARKitSim` are all free. Globally, "LiDARSim"/"LidarSim"/"lidarsim" are taken by five robotics
