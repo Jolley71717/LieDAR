@@ -226,8 +226,11 @@ Canonical example (exact bytes the golden test asserts; identity rotation, trans
 
 ### `mesh/anchors.json` — `[MeshAnchorMeta]`
 
-A JSON array, one object per anchor, in the order the anchors were written. `[]` when no mesh was
-captured (the file is still written at finish; a reader treats a missing file as `[]` too).
+A JSON array, one object per anchor, in the order the anchors were written. When no mesh was
+captured the file is still written at finish as the encoder's pretty-printed empty array — the
+exact bytes `[`, newline, newline, `]` (`"[\n\n]"`, 4 bytes, no trailing newline) — and `mesh.ply`
+is written with `element vertex 0` / `element face 0`, so a finished folder always has the same
+shape. A reader treats a missing file as `[]` too.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -308,11 +311,12 @@ triangle at y + 2.5:
   than buffered. A slow disk costs frames, never memory or latency.
 - Per frame, in order: `.depth`, `.conf` (if present), `.jpg` (if present and enabled), then
   `.json`. Each atomically.
-- `writeMeshSnapshot(anchors)` writes each anchor's three files, then `anchors.json`, then
-  `mesh.ply`. An anchor whose byte lengths disagree with its counts aborts the snapshot before
-  anything is written.
-- `finish(manifest)` runs behind every queued write and then writes `capture.json`. After it,
-  every `write` is dropped; a second `finish` throws.
+- `writeMeshSnapshot(anchors)` validates **every** anchor's byte lengths against its counts
+  first; the first mismatch throws and `mesh/` is left untouched (no anchor, valid or not, is
+  written). Then it writes each anchor's three files, then `anchors.json`, then `mesh.ply`.
+- `finish(manifest)` runs behind every queued write. If no mesh snapshot was written it writes
+  the empty snapshot (`anchors.json` = `"[\n\n]"`, `mesh.ply` with zero elements) first, then
+  `capture.json`. After it, every `write` is dropped; a second `finish` throws.
 - A frame write that fails on the queue is counted in `frameWriteFailure` (first message + count)
   and leaves no `.json`, so the frame is absent by the completeness rule.
 

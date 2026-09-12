@@ -14,6 +14,13 @@ import Foundation
 ///
 /// Failures on the queue cannot be thrown to the caller of `write`; they are collected in
 /// `frameWriteFailure` for the owner to surface after `finish`.
+///
+/// Concurrency invariant (why `@unchecked Sendable`): the class is a reference shared between
+/// the caller's context and the writer queue, so the compiler cannot prove it. Every mutable
+/// stored property (`pendingFrames`, `acceptedFrames`, `droppedFrames`, `failedFrames`,
+/// `firstFrameFailure`, `isFinished`, `meshSnapshotWritten`) is touched only inside
+/// `lock.withLock`; `queue` and the URLs/options are immutable; file-system state is touched
+/// only on `queue`. Nothing else may be added to the class without joining one of those rules.
 public final class CaptureRecorder: @unchecked Sendable {
     public struct Options: Sendable, Equatable {
         /// Write `frames/NNNNNN.jpg` when the frame carries colour.
@@ -59,6 +66,7 @@ public final class CaptureRecorder: @unchecked Sendable {
     private var failedFrames = 0
     private var firstFrameFailure: String?
     private var isFinished = false
+    private var meshSnapshotWritten = false
 
     /// Creates `frames/` and `mesh/` under `folderURL` (and the folder itself).
     public init(folderURL: URL, options: Options = Options()) throws {
@@ -140,23 +148,26 @@ public final class CaptureRecorder: @unchecked Sendable {
 
     /// Writes every anchor's three binaries, `mesh/anchors.json` and the merged `mesh.ply`,
     /// behind any frames still queued. Anchors are written in the order given; `anchors.json`
-    /// lists them in that order. Throws (and writes nothing further) on the first anchor whose
-    /// buffers disagree with its counts.
+    /// lists them in that order. Every anchor is validated before any file is written, so an
+    /// anchor whose buffers disagree with its counts throws and leaves `mesh/` untouched.
     public func writeMeshSnapshot(_ anchors: [MeshAnchorPayload]) async throws -> MeshSnapshotSummary {
         try await onQueue { try self.writeMeshSnapshotSync(anchors) }
     }
 
     private func writeMeshSnapshotSync(_ anchors: [MeshAnchorPayload]) throws -> MeshSnapshotSummary {
-        var metas: [MeshAnchorMeta] = []
-        var summary = MeshSnapshotSummary()
-        var ply = PLYBuilder()
-
         for anchor in anchors {
             do {
                 try anchor.validate()
             } catch {
                 throw RecorderError.meshLayout(anchor: anchor.id, detail: String(describing: error))
             }
+        }
+
+        var metas: [MeshAnchorMeta] = []
+        var summary = MeshSnapshotSummary()
+        var ply = PLYBuilder()
+
+        for anchor in anchors {
             let meta = MeshAnchorMeta(anchor)
             try anchor.vertices.write(to: meshURL.appendingPathComponent(meta.verticesFile), options: .atomic)
             try anchor.faces.write(to: meshURL.appendingPathComponent(meta.facesFile), options: .atomic)
@@ -173,13 +184,16 @@ public final class CaptureRecorder: @unchecked Sendable {
             .write(to: meshURL.appendingPathComponent(CaptureFormat.anchorsFile), options: .atomic)
         try Data(ply.render().utf8)
             .write(to: folderURL.appendingPathComponent(CaptureFormat.mergedPLYFile), options: .atomic)
+        lock.withLock { meshSnapshotWritten = true }
         return summary
     }
 
     // MARK: Manifest
 
-    /// Waits for every queued frame write, then writes `capture.json`. After this, `write(_:)`
-    /// drops every frame. Calling it twice throws `RecorderError.finished`.
+    /// Waits for every queued frame write, then writes `capture.json`. If `writeMeshSnapshot`
+    /// was never called, an empty snapshot (`mesh/anchors.json` as `[]`, `mesh.ply` with zero
+    /// elements) is written first so a finished folder always has the same shape. After this,
+    /// `write(_:)` drops every frame. Calling it twice throws `RecorderError.finished`.
     public func finish(manifest: CaptureManifest) async throws {
         let alreadyFinished: Bool = lock.withLock {
             defer { isFinished = true }
@@ -187,6 +201,9 @@ public final class CaptureRecorder: @unchecked Sendable {
         }
         guard !alreadyFinished else { throw RecorderError.finished }
         try await onQueue {
+            if !self.lock.withLock({ self.meshSnapshotWritten }) {
+                _ = try self.writeMeshSnapshotSync([])
+            }
             try CaptureFormat.makeJSONEncoder().encode(manifest)
                 .write(to: self.folderURL.appendingPathComponent(CaptureFormat.manifestFile), options: .atomic)
         }

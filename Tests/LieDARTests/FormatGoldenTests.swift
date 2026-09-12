@@ -348,6 +348,67 @@ final class FormatGoldenTests: XCTestCase {
         XCTAssertEqual(mesh, [], "nothing is written for a rejected snapshot")
     }
 
+    /// A good anchor ahead of a bad one must not reach the disk: every anchor is validated
+    /// before any file is written. The error names the FIRST invalid anchor.
+    func testMeshSnapshotWithAGoodAnchorBeforeABadOneWritesNothing() async throws {
+        let scratch = try makeScratchDirectory()
+        let recorder = try CaptureRecorder(folderURL: scratch)
+        var badFaces = Golden.triangleAnchor()
+        badFaces.faceCount = 2
+        var badClasses = Golden.quadAnchor()
+        badClasses.classes = Data([1])
+        do {
+            _ = try await recorder.writeMeshSnapshot([Golden.quadAnchor(), badFaces, badClasses])
+            XCTFail("expected meshLayout")
+        } catch let error as CaptureRecorder.RecorderError {
+            XCTAssertEqual(error, .meshLayout(anchor: Golden.secondAnchorID, detail: "faces(expectedBytes: 24, got: 12)"))
+        }
+        let mesh = try FileManager.default.contentsOfDirectory(atPath: scratch.appendingPathComponent("mesh").path)
+        XCTAssertEqual(mesh, [], "the valid first anchor must not have been written")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: scratch.appendingPathComponent("mesh.ply").path))
+    }
+
+    /// A capture that never snapshotted a mesh still has the full folder shape after finish:
+    /// `anchors.json` as an empty array and a `mesh.ply` with zero elements, exact bytes.
+    func testFinishWithoutAMeshSnapshotWritesTheEmptyMeshFiles() async throws {
+        let scratch = try makeScratchDirectory()
+        let recorder = try CaptureRecorder(folderURL: scratch, options: .init(saveColorImages: false))
+        XCTAssertTrue(recorder.write(Golden.frame(index: 0)))
+        try await recorder.finish(manifest: Golden.manifest(frameCount: 1, summary: .init()))
+
+        XCTAssertEqual(try text(of: scratch.appendingPathComponent("mesh/anchors.json")), "[\n\n]",
+                       "JSONEncoder's pretty-printed empty array, the same bytes the first consumer writes")
+        XCTAssertEqual(try text(of: scratch.appendingPathComponent("mesh.ply")), """
+        ply
+        format ascii 1.0
+        comment LieDAR raw capture, world space, metres, +Y up
+        comment vertex colour = majority mesh classification (see CaptureFormat.classificationColor)
+        element vertex 0
+        property float x
+        property float y
+        property float z
+        property uchar red
+        property uchar green
+        property uchar blue
+        element face 0
+        property list uchar int vertex_indices
+        end_header
+
+        """)
+        let top = try FileManager.default.contentsOfDirectory(atPath: scratch.path).sorted()
+        XCTAssertEqual(top, ["capture.json", "frames", "mesh", "mesh.ply"], "same shape as a capture with a mesh")
+        let reader = CaptureReader(folderURL: scratch)
+        XCTAssertEqual(try reader.anchors(), [])
+        XCTAssertEqual(reader.contents, CaptureContents(frameCount: 1, meshAnchorCount: 0))
+        XCTAssertEqual(CaptureFormat.disposition(of: reader.contents), .keepWithoutMesh)
+    }
+
+    /// And a finish after a real snapshot must not overwrite it with the empty forms.
+    func testFinishAfterAMeshSnapshotKeepsTheSnapshot() throws {
+        XCTAssertEqual(try reader.anchors().count, 2)
+        XCTAssertTrue(try text(of: folder.appendingPathComponent("mesh.ply")).contains("element vertex 7\n"))
+    }
+
     // MARK: Manifest
 
     func testManifestJSONIsExact() throws {
