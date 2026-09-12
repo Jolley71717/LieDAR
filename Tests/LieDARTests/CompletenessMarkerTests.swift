@@ -43,6 +43,29 @@ final class CompletenessMarkerTests: XCTestCase {
         XCTAssertEqual(CaptureFormat.disposition(of: CaptureFormat.contents(of: folder)), .discardEmpty)
     }
 
+    /// Guards the write ORDER, not just the failure path: only the depth write can fail here (a
+    /// directory squats on its path), so a recorder that wrote the `.json` first would leave a
+    /// marker for a frame with no depth. The other failure test removes `frames/` outright, which
+    /// fails every write regardless of order and cannot tell the two apart.
+    func testJSONIsNotWrittenWhenOnlyTheDepthWriteFails() async throws {
+        let folder = try makeScratchDirectory()
+        let recorder = try CaptureRecorder(folderURL: folder, options: .init(saveColorImages: false))
+        let depthURL = folder.appendingPathComponent("frames/000000.depth")
+        try FileManager.default.createDirectory(at: depthURL, withIntermediateDirectories: false)
+
+        XCTAssertTrue(recorder.write(Golden.frame(index: 0)))
+        try await recorder.finish(manifest: Golden.manifest(frameCount: 1, summary: .init()))
+
+        let jsonURL = folder.appendingPathComponent("frames/000000.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: jsonURL.path),
+                       "the .json must be written after the depth, so a failed depth write leaves no marker")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("frames/000000.conf").path),
+                       "confidence comes after depth too")
+        XCTAssertEqual(CaptureReader(folderURL: folder).completeFrameIndices(), [])
+        XCTAssertEqual(recorder.frameWriteFailure?.count, 1)
+        XCTAssertTrue(recorder.frameWriteFailure?.message.hasPrefix("frame 0: ") ?? false)
+    }
+
     func testAnUnfinishedFolderHasNoManifest() throws {
         let folder = try makeScratchDirectory()
         _ = try CaptureRecorder(folderURL: folder)
