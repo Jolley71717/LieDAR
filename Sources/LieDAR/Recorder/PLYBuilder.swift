@@ -1,6 +1,9 @@
 import Foundation
 import simd
 
+// Provenance: extracted from the first consumer's private raw-capture writer by the same author;
+// relicensed MIT here. The text layout it produces is the format contract.
+
 /// Accumulates world-space geometry and renders one ASCII PLY with per-vertex colours — the
 /// majority classification of the faces touching each vertex, ties to the lowest class. The
 /// exact text layout is part of the format (`docs/CAPTURE_FORMAT.md` § mesh.ply).

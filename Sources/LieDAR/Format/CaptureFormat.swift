@@ -42,6 +42,8 @@ public enum CaptureFormat {
     /// Counts what is actually on disk. Cheap — two directory listings, no file contents. A
     /// missing folder counts as zero rather than throwing. A frame counts only once its `.json`
     /// exists, because the recorder writes that last; an anchor counts by its `.vertices` file.
+    /// Provenance: extracted from the first consumer's private implementation by the same
+    /// author; MIT here.
     public static func contents(of folder: URL) -> CaptureContents {
         let manager = FileManager.default
         var contents = CaptureContents()
@@ -52,7 +54,8 @@ public enum CaptureFormat {
         return contents
     }
 
-    /// Whether a finished capture folder is worth keeping.
+    /// Whether a finished capture folder is worth keeping. Provenance: extracted from the first
+    /// consumer's private implementation by the same author; MIT here.
     public static func disposition(of contents: CaptureContents) -> CaptureDisposition {
         if contents.isEmpty { return .discardEmpty }
         if contents.meshAnchorCount == 0 { return .keepWithoutMesh }
@@ -60,7 +63,8 @@ public enum CaptureFormat {
     }
 
     /// RGB used in `mesh.ply` for each `MeshClassification.rawValue`. Exact values, so a reader
-    /// can map the colour back to the class.
+    /// can map the colour back to the class. Provenance: the first consumer's private colour
+    /// table, extracted by the same author; MIT here.
     public static func classificationColor(_ rawValue: UInt8) -> (r: UInt8, g: UInt8, b: UInt8) {
         switch rawValue {
         case 1: return (230, 138, 46)   // wall
