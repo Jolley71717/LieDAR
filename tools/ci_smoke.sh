@@ -7,7 +7,9 @@
 set -uo pipefail
 NAME="liedar-ci-smoke-$$"
 UDID=""
-cleanup() { [ -n "$UDID" ] && xcrun simctl delete "$UDID" >/dev/null 2>&1 && echo "   (deleted $UDID)"; }
+# Chatter goes to stderr. The EXIT trap fires after the RESULT line, and the house contract
+# is that a tools/ script ENDS on that line, so nothing else may reach stdout after it.
+cleanup() { [ -n "$UDID" ] && xcrun simctl delete "$UDID" >/dev/null 2>&1 && echo "   (deleted $UDID)" >&2; }
 trap cleanup EXIT
 
 echo "== xcode =="; xcodebuild -version | tr '\n' ' '; echo

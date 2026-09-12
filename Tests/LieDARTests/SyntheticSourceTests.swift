@@ -153,8 +153,15 @@ final class SyntheticSourceTests: XCTestCase {
         let bytes = color.planes[0].data
         let offset = 360 * color.planes[0].bytesPerRow + 480 * 4
         let wall = CaptureFormat.classificationColor(MeshClassification.wall.rawValue)
-        XCTAssertEqual([bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]], [wall.b, wall.g, wall.r, 255])
-        let distinct = Set(stride(from: 0, to: bytes.count, by: 4).map { [bytes[$0], bytes[$0 + 1], bytes[$0 + 2]] })
+        // Annotated on both sides. Two untyped array literals in one XCTAssertEqual made Xcode
+        // 26.1.1 give up type-checking the expression; 26.5 managed it, so only CI caught it.
+        let centre: [UInt8] = [bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]]
+        let expected: [UInt8] = [wall.b, wall.g, wall.r, 255]
+        XCTAssertEqual(centre, expected, "the pixel under the centre is the wall colour, BGRA")
+        let distinct: Set<[UInt8]> = Set(stride(from: 0, to: bytes.count, by: 4).map {
+            let triple: [UInt8] = [bytes[$0], bytes[$0 + 1], bytes[$0 + 2]]
+            return triple
+        })
         XCTAssertGreaterThanOrEqual(distinct.count, 3, "several classes are in view: \(distinct.count) colours")
     }
 

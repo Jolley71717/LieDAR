@@ -30,7 +30,7 @@ jobs:
         # the job log, the run summary and a run annotation, so nobody has to open a raw log to
         # find out. A BLOCKED verdict still leaves the job green.
         run: |
-          verdict="$(tail -1 smoke.log 2>/dev/null)"
+          verdict="$(grep -E '^RESULT: ' smoke.log 2>/dev/null | tail -1)"
           case "$verdict" in
             "RESULT: PASS"*)    headline="Metal PRESENT on this runner. The in-simulator GPU probe can run." ;;
             "RESULT: BLOCKED"*) headline="Metal BLOCKED on this runner. There is no GPU. The CPU raycaster and every test that depends on it are unaffected." ;;
@@ -85,7 +85,7 @@ jobs:
         run: bash tools/journeys.sh | tee journeys.log
       - name: Record verdict
         if: always()
-        run: tail -1 journeys.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: grep -E \'^RESULT: \' journeys.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   fixture-audit:
     name: fixture audit
     runs-on: macos-15
@@ -99,7 +99,7 @@ jobs:
         run: bash tools/fixture_audit.sh | tee fixture-audit.log
       - name: Record verdict
         if: always()
-        run: tail -1 fixture-audit.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: grep -E \'^RESULT: \' fixture-audit.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   mutation:
     name: journey mutation proof
     runs-on: macos-15
@@ -115,4 +115,4 @@ jobs:
         run: bash tools/journey_mutation.sh | tee mutation.log
       - name: Record verdict
         if: always()
-        run: tail -1 mutation.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: grep -E \'^RESULT: \' mutation.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
