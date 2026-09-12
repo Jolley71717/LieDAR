@@ -116,6 +116,19 @@ under Xcode); the preview shader is a source string compiled at runtime, which t
 `LICENSE` (MIT) and a semver tag from the first release so Swift Package Index indexes it; macOS
 builds stay green because ARKit imports are guarded.
 
+## CI verdict (2026-09-12, first run on GitHub)
+
+`tools/ci_smoke.sh` on `macos-15` with Xcode 26.1.1 (17B100): the runner created and booted an
+iPhone simulator (device type `iPhone-15-Plus`, the newest the grep picked on that image) and
+`MTLCreateSystemDefaultDevice()` on the host returned **"Apple Paravirtual device"**. So GitHub's
+macOS VMs do expose a Metal device — the red team's one unverified assumption (RT-8/RT-9) is
+resolved for the host. Whether the *simulator's* GPU supports depth-texture readback there is
+answered by `MetalAvailabilityTests` once phase 0 lands (it skips with "no Metal device" rather
+than failing). Timing: simulator create+boot took ~5 min on the runner; budget accordingly.
+The unit job reported `RESULT: BLOCKED no Package.swift/tools/test.sh yet` and stayed green,
+which is the intended behaviour before phase 0. The first run failed in 0 s because `hashFiles`
+is not permitted in a job-level `if`; gating moved to a step.
+
 ## Repository layout (RT-8)
 
 ```
