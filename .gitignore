@@ -1,0 +1,11 @@
+.DS_Store
+/.build/
+/build/
+/DerivedData/
+*.xcuserstate
+xcuserdata/
+/Example/DerivedData/
+/Fixtures/**/worldmap.bin
+/Fixtures/**/*.jpg
+/Fixtures/**/*.jpeg
+.claude/worktrees/
