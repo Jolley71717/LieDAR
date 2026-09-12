@@ -59,13 +59,16 @@ source moves it from "the only test" to "the confirmation", and no further.
 | `DegradationModel.labelNoise` | Anchors that are noisier than their neighbours | each anchor draws its own rate in [0, 4 %]; those faces get a uniformly random class |
 
 Every one of these is seeded (`SeededRandom`, SplitMix64) and applied per anchor id, so a seed
-reproduces a capture byte for byte and an anchor's degradation does not change between its
-`.added` and its `.updated` events.
+reproduces a capture byte for byte on any arm64 machine, and an anchor's degradation does not
+change between its `.added` and its `.updated` events. The qualification is deliberate: the
+camera path calls libm trigonometry (`sin` for the sway, `acos` for the motion gate), and libm
+trig is not bit-identical across architectures, so an x86_64 host can differ in the last bit of
+a pose and, from there, in which frames pass gating.
 
-## What is exact, and therefore testable to the byte
+## What is exact, and therefore testable to the byte (on any arm64 machine)
 
 - The raycaster's depth, confidence and triangle ids for a given room, pose and intrinsics
-  (`Tests/LieDARTests/Goldens/canonical-depth.bin`).
+  (`Tests/LieDARTests/Goldens/canonical-depth.bin` and `canonical-conf.bin`).
 - A generated fixture for a given seed and tour (`tools/make_fixture.sh` generates twice and
   diffs).
 - The tour's poses and tracking states for a given path and rate.

@@ -2,9 +2,13 @@ import Foundation
 
 /// SplitMix64. Every seeded decision in the package — room layout, anchor churn, replacement
 /// UUIDs, label degradation — draws from this and only this, so a seed reproduces a capture
-/// byte for byte on any machine. The derived helpers (`nextDouble`, `nextInt(below:)`,
-/// `nextUUID`) are written out here rather than taken from the standard library's
-/// `random(in:using:)`, whose algorithm is not part of Swift's stability guarantee.
+/// byte for byte on any arm64 machine. The generator itself is pure integer arithmetic and is
+/// identical everywhere; the arm64 qualification is for the capture as a whole, because the
+/// camera path goes through libm trigonometry (`sin` in the hand-held sway, `acos` in the
+/// motion gate), which is not bit-identical across architectures. The derived helpers
+/// (`nextDouble`, `nextInt(below:)`, `nextUUID`) are written out here rather than taken from
+/// the standard library's `random(in:using:)`, whose algorithm is not part of Swift's stability
+/// guarantee.
 public struct SeededRandom: RandomNumberGenerator, Sendable, Equatable {
     private var state: UInt64
 
