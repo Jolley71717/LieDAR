@@ -1,0 +1,15 @@
+{
+  "deviceModel" : "LieDAR-synthetic",
+  "endedAt" : "2026-01-01T00:00:03Z",
+  "formatVersion" : 2,
+  "frameCount" : 13,
+  "iosVersion" : "synthetic",
+  "meshAnchorCount" : 41,
+  "normalTrackingFrameCount" : 61,
+  "notes" : "LieDAR synthetic fixture, seed 1, 3.0 s tour, depth 48x36 at 30.0 Hz",
+  "startedAt" : "2026-01-01T00:00:00Z",
+  "totalFaces" : 814,
+  "totalTrackingFrameCount" : 91,
+  "totalVertices" : 810,
+  "worldMapSaved" : false
+}
