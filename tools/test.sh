@@ -33,7 +33,10 @@ trap cleanup EXIT
 with_deadline() { perl -e 'alarm shift; exec @ARGV' "$TIMEOUT" "$@"; }
 
 # "Executed N tests, with M failures" — the last such line is the suite total.
-counts() { grep -E 'Executed [0-9]+ tests?, with [0-9]+ failures?' "$1" | tail -1 | sed -E 's/.*Executed ([0-9]+) tests?, with ([0-9]+) failures?.*/\1 \2/'; }
+counts() {
+  grep -E 'Executed [0-9]+ tests?, with ([0-9]+ tests? skipped and )?[0-9]+ failures?' "$1" | tail -1 \
+    | sed -E 's/.*Executed ([0-9]+) tests?, with ([0-9]+ tests? skipped and )?([0-9]+) failures?.*/\1 \3/'
+}
 skips() { grep -cE "Test Case .* skipped" "$1" 2>/dev/null || true; }
 
 echo "== xcode =="; xcodebuild -version | tr '\n' ' '; echo
@@ -78,7 +81,10 @@ echo "   created $NAME ($TYPE, $RUNTIME) $UDID"
 xcrun simctl boot "$UDID" >/dev/null 2>&1 || { echo "RESULT: BLOCKED simctl boot failed for $UDID"; exit 2; }
 xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || { echo "RESULT: BLOCKED simulator $UDID never reported booted"; exit 2; }
 
-with_deadline xcodebuild test -scheme LieDAR-Package -destination "platform=iOS Simulator,id=$UDID" \
+# xcodebuild forwards TEST_RUNNER_* variables to the test process with the prefix stripped.
+PARITY_ENV=()
+if [ -n "${LIEDAR_PARITY_CAPTURE:-}" ]; then PARITY_ENV=("TEST_RUNNER_LIEDAR_PARITY_CAPTURE=$LIEDAR_PARITY_CAPTURE"); fi
+with_deadline env ${PARITY_ENV[@]+"${PARITY_ENV[@]}"} xcodebuild test -scheme LieDAR-Package -destination "platform=iOS Simulator,id=$UDID" \
   -derivedDataPath "$LOGDIR/DerivedData" -parallel-testing-enabled NO > "$LOGDIR/xcodebuild.log" 2>&1
 rc=$?
 if [ "$rc" -eq 142 ]; then echo "RESULT: BLOCKED simulator xcodebuild test TIMEOUT after ${TIMEOUT}s (log: $LOGDIR/xcodebuild.log)"; exit 2; fi
