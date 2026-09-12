@@ -3,7 +3,7 @@
 #
 # A test that passes is only evidence if it would have failed without the code it guards.
 # This script mutates one line at a time (removes it, or replaces it with a broken version),
-# runs the test that guards it, and demands that the test FAIL on the named assertion — then
+# runs the test that guards it, and demands that the test FAIL on the named assertion. Then it
 # puts the line back and proves the file is byte-for-byte what it was, so a mutation cannot
 # leak into a commit. (Generalised from Meshwise's tools/mutation_check_badge.sh.) Cases, each
 # its own mutation and its own test:

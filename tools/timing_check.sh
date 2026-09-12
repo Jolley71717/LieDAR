@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# timing_check.sh — assert the raycaster's release-build frame time, outside the default suite.
+# timing_check.sh: assert the raycaster's release-build frame time, outside the default suite.
 #
 # RaycasterTests/testRenderTimeIsWithinBudget is a wall-clock test: it skips unless
 # LIEDAR_ASSERT_TIMING=1 is set, so a loaded CI runner cannot fail a correctness run. This script
@@ -52,7 +52,7 @@ if [ "$SKIPPED" -ne 0 ]; then
   echo "RESULT: FAIL the timing test skipped although LIEDAR_ASSERT_TIMING=1 was set (log: $LOG)"; exit 1
 fi
 if [ "$PASSED" -eq 0 ] && [ "$FAILED" -eq 0 ]; then
-  echo "RESULT: FAIL $TEST did not run at all — check the --filter path (log: $LOG)"; exit 1
+  echo "RESULT: FAIL $TEST did not run at all. Check the --filter path (log: $LOG)"; exit 1
 fi
 if [ "$FAILED" -ne 0 ] || [ "$rc" -ne 0 ]; then
   grep -E 'XCTAssert.*failed' "$LOG" | head -3 | sed -E 's/^.*error: -\[[^]]*\] : //' | sed 's/^/   /'

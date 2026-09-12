@@ -4,11 +4,11 @@ import XCTest
 @testable import LieDAR
 
 /// The raycaster is deterministic, so its depth and confidence for the canonical room and pose
-/// are pinned to exact bytes — `Goldens/canonical-depth.bin` (256 × 192 × 4 = 196 608 bytes) and
-/// `Goldens/canonical-conf.bin` (256 × 192 = 49 152 bytes) — not to a tolerance. Regenerate a
-/// golden — and say so in the commit — only when the raycaster's numerics or the confidence
-/// model change on purpose: `LIEDAR_GOLDEN_OUT=Tests/LieDARTests/Goldens swift test --filter
-/// RaycasterTests/testDepthMatchesGoldenBytes` (and `.../testConfidenceMatchesGoldenBytes`).
+/// are pinned to exact bytes, not to a tolerance: `Goldens/canonical-depth.bin`
+/// (256 × 192 × 4 = 196 608 bytes) and `Goldens/canonical-conf.bin` (256 × 192 = 49 152 bytes).
+/// Regenerate a golden only when the raycaster's numerics or the confidence model change on
+/// purpose, and say so in the commit: `LIEDAR_GOLDEN_OUT=Tests/LieDARTests/Goldens swift test
+/// --filter RaycasterTests/testDepthMatchesGoldenBytes` (and `.../testConfidenceMatchesGoldenBytes`).
 final class RaycasterTests: XCTestCase {
     static let goldenName = "canonical-depth.bin"
     static let confidenceGoldenName = "canonical-conf.bin"
@@ -73,7 +73,7 @@ final class RaycasterTests: XCTestCase {
 
         // Corridor pixel: a 2 m × 12 m corridor, camera 0.5 m from the west wall looking down
         // it. Column 105's ray has dx = (105.5 − 128) / 178.67 = −0.126, so it meets the west
-        // wall 3.97 m out — inside `mediumRange` — at |cos θ| = 0.125, under `mediumCosine`
+        // wall 3.97 m out, inside `mediumRange`, at |cos θ| = 0.125, under `mediumCosine`
         // (0.2). That is the low band by angle alone; with `mediumCosine` at 0 it would be medium.
         let corridor = Raycaster(model: .parametric(RoomSpec(width: 2, depth: 12, ceilingHeight: 2.4)))
         let pose = VirtualCamera.lookAt(from: SIMD3(0.5, 1.4, 11.5), to: SIMD3(0.5, 1.4, 0))
@@ -179,7 +179,7 @@ final class RaycasterTests: XCTestCase {
         let build = "release"
         #endif
         print("RAYCASTER_TIMING: \(String(format: "%.2f", ms)) ms/frame (256×192, \(room.triangleCount) triangles, \(build), ceiling \(ceiling) ms, \(hits) hits over \(poses.count) frames)")
-        XCTAssertGreaterThan(hits, 0, "the timed frames hit nothing — the time measures an empty render")
+        XCTAssertGreaterThan(hits, 0, "the timed frames hit nothing, so the time measures an empty render")
         // A closed room leaves essentially no misses; a ray landing exactly on a triangle seam
         // can miss (one pixel in 245 760 on the tour), so the floor is 99 %, not 100 %.
         XCTAssertGreaterThan(hits, poses.count * 256 * 192 * 99 / 100, "fewer than 99 % of the timed pixels hit the room")
