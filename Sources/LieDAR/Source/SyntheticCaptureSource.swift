@@ -55,12 +55,13 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
             self.degradation = degradation
         }
 
-        /// Everything from one seed: a random room, a tour of it, seeded churn and
-        /// degradation at the suite defaults, and a loop closure of a few centimetres three
-        /// quarters of the way round.
+        /// Everything from one seed: a random room, a tour of it lasting exactly `seconds`,
+        /// seeded churn and degradation at the suite defaults, and a loop closure of a few
+        /// centimetres three quarters of the way through.
         public init(seed: UInt64, seconds: TimeInterval = 8.5) {
             let spec = RoomSpec.random(seed: seed)
-            self.init(room: .parametric(spec), path: .tour(of: spec, seconds: seconds), degradation: DegradationModel(seed: seed))
+            let path = CameraPath.tour(of: spec, seconds: seconds + CameraPath.tourLegSeconds).truncated(to: seconds)
+            self.init(room: .parametric(spec), path: path, degradation: DegradationModel(seed: seed))
             chunker.seed = seed
             loopClosure = LoopClosure(time: seconds * 0.75, translation: SIMD3(0.03, 0.01, -0.02))
         }
