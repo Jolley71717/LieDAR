@@ -142,22 +142,35 @@ layout section for the Metal-in-simulator result on the runner.
 journeys (the other half of the phase-2 acceptance row) are a separate piece of work.
 
 After the 2a review (three required changes: timing test out of the default suite, a confidence
-golden with a grazing-angle pixel and a mutation proof for it, arm64 wording) the following was
-run locally on an M4 Pro with Xcode 26.5 (17F42), Swift 6.3.2, in this order, each exit 0:
+golden with a grazing-angle pixel and a mutation proof for it, arm64 wording) the timing test's
+first release run showed one ray in 245 760 missing the closed canonical room. Tour frame at
+3.6 s, pixel (161, 148), lands on the north wall exactly on the edge y = 0.4 shared by wall
+triangles 227 and 232; the strict intersector rejected it on both sides (u + v = 1.0000003 on
+one, v = -2.1e-7 on the other) and wrote depth 0. The room is closed: of its 1330 edges, 1176
+are used by two triangles, 144 by one (120 T-junction seams where tessellation grids meet, 24
+bulkhead and table edges lying on a ceiling, wall or floor face) and 10 by three (the bulkhead
+side on a ceiling grid line); none is open. The fix is in `Raycaster`: a pixel the strict pass
+misses is traced again with a barycentric tolerance of 1e-5. Strict hits are never revisited,
+so both goldens and `Fixtures/synthetic-1` were byte-identical afterwards (fixture regenerated
+and diffed). The timing test demands a hit for every pixel again.
+
+The following was then run once, in this order, on commit d7408a2 on an M4 Pro with Xcode 26.5
+(17F42), Swift 6.3.2, each exit 0:
 
 - `swift build -Xswiftc -warnings-as-errors`: clean, 0 warnings.
-- `LIEDAR_SIM_NAME=LieDAR-2a bash tools/test.sh`: `RESULT: PASS macOS 80 tests/0 failures/1 skipped;
-  simulator 80 tests/0 failures/1 skipped (iPhone-17-Pro-Max, iOS 26.5)`. The one skip on each
+- `LIEDAR_SIM_NAME=LieDAR-2a bash tools/test.sh`: `RESULT: PASS macOS 81 tests/0 failures/1 skipped;
+  simulator 81 tests/0 failures/1 skipped (iPhone-17-Pro-Max, iOS 26.5)`. The one skip on each
   leg is `RaycasterTests/testRenderTimeIsWithinBudget`, which skips without
   `LIEDAR_ASSERT_TIMING=1`. The parity tests ran because a consumer capture was present.
-- `bash tools/timing_check.sh`: `RESULT: PASS raycaster 11.79 ms/frame in release (256×192,
-  ceiling 20 ms), 245759 hits over 5 frames` (245 760 pixels, one seam miss).
-- `bash tools/mutation_check.sh`: `RESULT: PASS 4/4 tests fail on their named assertion when
+- `bash tools/timing_check.sh`: `RESULT: PASS raycaster 12.40 ms/frame in release (256×192,
+  ceiling 20 ms), 245760 hits over 5 frames` (245 760 pixels, no misses).
+- `bash tools/mutation_check.sh`: `RESULT: PASS 5/5 tests fail on their named assertion when
   their line is mutated, files restored`. Case D replaces `mediumCosine` 0.2 with 0.0 in
   `Raycaster.ConfidenceModel.init`, and `testConfidenceMatchesGoldenBytes` fails on
   `corridor pixel (105, 96)` (got 1, expected 0). The canonical frame's confidence histogram is
   30 541 high / 18 611 medium / 0 low, so `canonical-conf.bin` alone cannot see that mutation.
-  The corridor pixel is what catches it.
+  The corridor pixel is what catches it. Case E sets `seamTolerance` to 0, and
+  `testRayOnASharedEdgeStillHits` fails on `shared edge` (triangle id -1, depth 0).
 - `bash tools/fixture_audit.sh`: `RESULT: PASS 165 file(s) under Fixtures/`.
 
 ## Repository layout (RT-8)
