@@ -39,32 +39,32 @@ blocked() { echo "RESULT: BLOCKED $*"; exit 2; }
 [ $# -eq 0 ] || blocked "usage: tools/mutation_check.sh (takes no arguments)"
 command -v swift >/dev/null || blocked "swift not on PATH"
 
-# file | exact line to delete | test | assertion text that must appear in the failure | label
+# file ~ exact line to delete ~ test ~ assertion text that must appear in the failure ~ label  (~ never occurs in a line)
 CASES=(
-  "Sources/LieDAR/Anchors/AnchorChunker.swift|            blocks[b].shift += translation|AnchorChunkerTests/testLoopClosureTranslatesEveryAnchorAtOnce|loop closure translation|A: loop-closure translation"
-  "Sources/LieDAR/Realism/DegradationModel.swift|                out[i] = MeshClassification.none.rawValue|DegradationTests/testUnlabelledFractionMatchesTheModelForASeed|unlabelled fraction|B: degradation model"
-  "Sources/LieDAR/Source/FrameGate.swift|            guard moved || turned || stale else { return false }|SyntheticSourceTests/testThreeSecondCaptureWritesTheExpectedFolder|frames written|C: gating threshold"
+  "Sources/LieDAR/Anchors/AnchorChunker.swift~            blocks[b].shift += translation~AnchorChunkerTests/testLoopClosureTranslatesEveryAnchorAtOnce~loop closure translation~A: loop-closure translation"
+  "Sources/LieDAR/Realism/DegradationModel.swift~                out[i] = MeshClassification.none.rawValue~DegradationTests/testUnlabelledFractionMatchesTheModelForASeed~unlabelled fraction~B: degradation model"
+  "Sources/LieDAR/Source/FrameGate.swift~            guard moved || turned || stale else { return false }~SyntheticSourceTests/testThreeSecondCaptureWritesTheExpectedFolder~frames written~C: gating threshold"
 )
 
 # Snapshot every file up front; restore all of them on every exit path and prove it.
 declare -a FILES=() BACKUPS=()
 for CASE in "${CASES[@]}"; do
-  FILE="${CASE%%|*}"
+  FILE="${CASE%%~*}"
   [ -f "$FILE" ] || blocked "missing $FILE"
   BACKUP="$LOGDIR/$(basename "$FILE").before"
   cp "$FILE" "$BACKUP"
   FILES+=("$FILE"); BACKUPS+=("$BACKUP")
 done
+# Quiet on success so the RESULT: line stays last; loud (and exit 1) if a restore fails.
 restore_all() {
   local i
   for i in "${!FILES[@]}"; do
     cp "${BACKUPS[$i]}" "${FILES[$i]}"
     if ! cmp -s "${BACKUPS[$i]}" "${FILES[$i]}"; then
-      echo "RESULT: FAIL could not restore ${FILES[$i]} — inspect it before committing anything"
+      echo "RESTORE FAILED: ${FILES[$i]} differs from its backup ${BACKUPS[$i]} — inspect it before committing anything"
       exit 1
     fi
   done
-  echo "   (all ${#FILES[@]} files restored, byte-identical to before)"
 }
 trap restore_all EXIT
 
@@ -73,26 +73,25 @@ passed() { grep -c "Test Case .* passed" "$1" 2>/dev/null || true; }
 failed() { grep -c "Test Case .* failed" "$1" 2>/dev/null || true; }
 
 echo "== baseline: the guarded tests must pass unmodified =="
-FILTER=""
+# One test per run: SwiftPM narrows correctly for a single --filter and not for several.
 for CASE in "${CASES[@]}"; do
-  REST="${CASE#*|}"; REST="${REST#*|}"; TEST="${REST%%|*}"
-  FILTER="${FILTER:+$FILTER|}$TEST"
+  REST="${CASE#*~}"; REST="${REST#*~}"; TEST="${REST%%~*}"
+  swift test --filter "$TEST" > "$LOGDIR/baseline.log" 2>&1
+  P="$(passed "$LOGDIR/baseline.log")"; F="$(failed "$LOGDIR/baseline.log")"
+  echo "   $TEST: passed $P, failed $F"
+  if [ "$P" -ne 1 ] || [ "$F" -ne 0 ]; then
+    grep -E 'error:' "$LOGDIR/baseline.log" | head -5 | sed 's/^/   /'
+    echo "RESULT: FAIL baseline: $TEST must pass exactly once before any mutation, got $P passed / $F failed (log: $LOGDIR/baseline.log)"
+    exit 1
+  fi
 done
-swift test --filter "$FILTER" > "$LOGDIR/baseline.log" 2>&1
-P="$(passed "$LOGDIR/baseline.log")"; F="$(failed "$LOGDIR/baseline.log")"
-echo "   passed: $P  failed: $F  log: $LOGDIR/baseline.log"
-if [ "$P" -ne "${#CASES[@]}" ] || [ "$F" -ne 0 ]; then
-  grep -E 'error:' "$LOGDIR/baseline.log" | head -5 | sed 's/^/   /'
-  echo "RESULT: FAIL baseline: expected ${#CASES[@]} passing tests before any mutation, got $P passed / $F failed"
-  exit 1
-fi
 
 PASSED_CASES=0
 for CASE in "${CASES[@]}"; do
-  FILE="${CASE%%|*}"; REST="${CASE#*|}"
-  LINE="${REST%%|*}"; REST="${REST#*|}"
-  TEST="${REST%%|*}"; REST="${REST#*|}"
-  NEEDLE="${REST%%|*}"; LABEL="${REST#*|}"
+  FILE="${CASE%%~*}"; REST="${CASE#*~}"
+  LINE="${REST%%~*}"; REST="${REST#*~}"
+  TEST="${REST%%~*}"; REST="${REST#*~}"
+  NEEDLE="${REST%%~*}"; LABEL="${REST#*~}"
   CASELOG="$LOGDIR/case-${LABEL%%:*}.log"
 
   echo
@@ -132,6 +131,9 @@ for CASE in "${CASES[@]}"; do
   for i in "${!FILES[@]}"; do [ "${FILES[$i]}" = "$FILE" ] && cp "${BACKUPS[$i]}" "$FILE"; done
 done
 
+trap - EXIT
+restore_all
 echo
+echo "   (all ${#FILES[@]} files restored, byte-identical to before)"
 echo "RESULT: PASS $PASSED_CASES/${#CASES[@]} tests fail on their named assertion without their line, files restored"
 exit 0
