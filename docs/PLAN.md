@@ -1,14 +1,14 @@
-# LieDAR — re-plan after red team (v2, 2026-09-12)
+# LieDAR: the plan, re-planned after a red team (v2, 2026-09-12)
 
 _Supersedes the design in `docs/LIDAR_SIMULATOR.md` and the seam in `docs/TEST_HARNESS.md` where
 they conflict. Every change below traces to a numbered red-team finding (RT-n)._
 
-**Name: `LieDAR`** — Luke's suggestion (2026-09-12), chosen over `LieDAR`. It lies to your
-app about LiDAR, which is the pitch in one word, and it is memorable where `LieDAR` was
-merely searchable; in an empty niche the README carries the search terms. Casing mirrors LiDAR.
-Collision check: free under `Jolley71717` in every casing; globally five hobby repos named
-"liedar" (lie-detector projects, ★0–1), zero Swift packages. Module name `LieDAR`, repo
-`github.com/Jolley71717/LieDAR`, local `~/git/liedar`.
+**Name: `LieDAR`.** It lies to your app about LiDAR, which is the pitch in one word. The
+alternative considered, `VirtualLiDAR`, was merely searchable, and in an empty niche the README
+carries the search terms anyway. Casing mirrors LiDAR. Collision check: free in every casing
+under the owner's account. Globally, five hobby repos are named "liedar", all of them
+lie-detector projects with no stars, and there are no Swift packages. Module name `LieDAR`,
+repo `github.com/Jolley71717/LieDAR`.
 
 ## What the red team proved and what it changed
 
@@ -20,12 +20,12 @@ inside GitHub's macOS VMs, or under Rosetta.
 **Three blockers in the v1 design, all architectural:**
 
 - **RT-1** `RawCaptureView` disables Start when `RawCaptureSession.isSupported` is false, and that
-  is a static `ARWorldTrackingConfiguration` query — false on every simulator. A journey test
+  is a static `ARWorldTrackingConfiguration` query, false on every simulator. A journey test
   cannot tap Start. `EmptyCaptureReason.diagnose` has the same root: on the simulator it returns
   `.unsupportedDevice`, never the reason under test.
 - **RT-2** The seam at the writer is one line too low. Everything between the ARKit delegate and
-  the writer — tracking tallies that feed the quality score, motion/interval gating, sweep and
-  loop-closure voice, anchor add/update/remove bookkeeping — lives in `handle(_:)`, and `stop()`
+  the writer, meaning tracking tallies that feed the quality score, motion and interval gating,
+  sweep and loop-closure voice, and anchor bookkeeping, lives in `handle(_:)`, and `stop()`
   takes its mesh from `arSession.currentFrame`, which is nil on the simulator. A replay branch
   would re-implement `handle` and get `[]` for the mesh: an untested copy of exactly the code the
   harness exists to test.
@@ -64,7 +64,7 @@ is a peer, not a special case.
 `FramePayload { depth: Plane<Float32>, confidence: Plane<UInt8>?, color: ColorPlanes?,
 meta: FrameMeta }` where planes are `Data` + width/height/bytesPerRow and `ColorPlanes` carries
 the two 420f planes or one BGRA plane with an explicit `pixelFormat`. Colour is rendered at
-≤ 960×720 with matching `imageResolution`/intrinsics — the writer downsizes to 640 anyway.
+≤ 960×720 with matching `imageResolution` and intrinsics, since the writer downsizes to 640 anyway.
 `MeshAnchorPayload { id: UUID, transform, vertices: Data, faces: Data, classes: Data, counts }`.
 The package builds in **Swift 6 language mode from day one**.
 
@@ -110,7 +110,7 @@ CoreImage or Meshwise types**; JPEG encoding uses ImageIO.
 ### Packaging (RT-10)
 
 `platforms: [.iOS(.v16)]`. `ARKitCaptureSource` behind `#if canImport(ARKit)` plus a runtime
-`isSupported` — not `targetEnvironment(simulator)`, because the synthetic source is wanted on
+`isSupported`, not `targetEnvironment(simulator)`, because the synthetic source is wanted on
 non-LiDAR *devices* too (demo mode). No `.metal` files in the package (SwiftPM compiles them only
 under Xcode); the preview shader is a source string compiled at runtime, which the probe proved.
 `LICENSE` (MIT) and a semver tag from the first release so Swift Package Index indexes it; macOS
@@ -121,7 +121,7 @@ builds stay green because ARKit imports are guarded.
 `tools/ci_smoke.sh` on `macos-15` with Xcode 26.1.1 (17B100): the runner created and booted an
 iPhone simulator (device type `iPhone-15-Plus`, the newest the grep picked on that image) and
 `MTLCreateSystemDefaultDevice()` on the host returned **"Apple Paravirtual device"**. So GitHub's
-macOS VMs do expose a Metal device — the red team's one unverified assumption (RT-8/RT-9) is
+macOS VMs do expose a Metal device, so the red team's one unverified assumption (RT-8/RT-9) is
 resolved for the host. Whether the *simulator's* GPU supports depth-texture readback there is
 answered by `MetalAvailabilityTests` once phase 0 lands (it skips with "no Metal device" rather
 than failing). Timing: simulator create+boot took ~5 min on the runner; budget accordingly.
@@ -188,7 +188,7 @@ LieDAR/
     ExampleApp/                 minimal capture app using the package end to end
     ExampleUITests/             the black-box journeys (XCUITest needs an app host)
   Fixtures/                     generated only; audited
-  tools/                        make_fixture.sh, fixture_audit.sh, ci_smoke.sh — each one RESULT: line
+  tools/                        make_fixture.sh, fixture_audit.sh, ci_smoke.sh, each ending in a RESULT: line
   docs/CAPTURE_FORMAT.md, docs/REALISM.md (what it cannot reproduce), README, LICENSE
   .github/workflows/ci.yml
 ```
@@ -196,20 +196,20 @@ LieDAR/
 ## CI (RT-8, RT-9)
 
 `runs-on: macos-15` (arm64 image) with an explicit `xcode-select` to a pinned Xcode from the
-runner-images list — never `macos-latest`. Jobs, in order, each failing loud:
-1. **smoke** — `tools/ci_smoke.sh`: `xcrun simctl create` a named device, `boot`, `bootstatus -b`,
+runner-images list, never `macos-latest`. Jobs, in order, each failing loud:
+1. **smoke** runs `tools/ci_smoke.sh`: `xcrun simctl create` a named device, `boot`, `bootstatus -b`,
    and a 20-line Metal probe; prints `RESULT: BLOCKED` (not PASS) if `MTLCreateSystemDefaultDevice()`
    is nil, because GPU passthrough in GitHub VMs is unverified. Tests do not depend on Metal
    (RT-9), so a BLOCKED smoke only disables the preview job.
-2. **unit** — `xcodebuild test -scheme LieDAR-Package -destination 'platform=iOS Simulator,id=<UDID>'`.
-3. **journeys** — `xcodebuild test -project Example/Example.xcodeproj -scheme ExampleApp
+2. **unit** runs `xcodebuild test -scheme LieDAR-Package -destination 'platform=iOS Simulator,id=<UDID>'`.
+3. **journeys** runs `xcodebuild test -project Example/Example.xcodeproj -scheme ExampleApp
    -only-testing:ExampleUITests`, `-parallel-testing-enabled NO`, `-retry-tests-on-failure`,
    `timeout-minutes: 45`.
-4. **fixture-audit** — `tools/fixture_audit.sh`.
-5. **mutation** — the journey that guards the save signal must fail with the signal removed.
-Expect 8–15 min per run; free on a public repo. Nothing to cache.
+4. **fixture-audit** runs `tools/fixture_audit.sh`.
+5. **mutation** proves the journey that guards the save signal fails with the signal removed.
+Expect 8 to 15 minutes per run. It is free on a public repo, and there is nothing to cache.
 
-## Test strategy — black box in the middle
+## Test strategy: black box in the middle
 
 - **Journeys (Example app, XCUITest):** Home → Start → frames climb → Stop & Save → row with
   correct size and no empty badge → folder screen with non-zero counts → extraction yields ≥ 1
@@ -220,7 +220,7 @@ Expect 8–15 min per run; free on a public repo. Nothing to cache.
   exact bytes; the chunker's anchor set for a scripted path is asserted by count and bounds.
 - **Mutation proofs:** `tools/mutation_check.sh` removes one line at a time (the save signal, the
   loop-closure translation, the gating threshold) and demands the named test fail on the named
-  assertion — Meshwise's Card 17 pattern, generalised.
+  assertion. That is Meshwise's Card 17 pattern, generalised.
 - **What it cannot reproduce** is written in `docs/REALISM.md` and repeated in the README:
   sensor noise, drift, relocalisation, lighting, reflective failures, RoomPlan.
 
@@ -230,7 +230,7 @@ Expect 8–15 min per run; free on a public repo. Nothing to cache.
 |---|---|---|
 | 0 | Format spec + `CaptureRecorder` + Sendable payloads, in the package | `docs/CAPTURE_FORMAT.md` names every file, field and byte layout; the package's reader parses a real consumer capture (manifest, frame meta, anchor binaries, PLY header) with counts agreeing with the disk; the writer matches the spec by construction (same layout, encoder settings and PLY builder as the consumer's) and by golden tests that pin exact bytes, JSON and PLY text; `swift build -warnings-as-errors` clean and `tools/test.sh` PASS on macOS and a throwaway simulator |
 | 1 | `CaptureSource` injected into Meshwise's `RawCaptureSession`; `ARKitCaptureSource`; `ReplayCaptureSource`; Start enabled by `isAvailable` | Meshwise's existing unit tests pass against the package's writer byte-for-byte on a fixture; Meshwise device lane green (Card 2) AND a replayed capture on the simulator reaches the list with no badge, via the real `handle`/`stop` |
-| 2 | Parametric `RoomModel`, CPU `Raycaster`, `AnchorChunker`, `DegradationModel`, scripted `VirtualCamera`, generated fixtures + audit | Example journeys 1–3 green on a throwaway simulator; goldens exact; mutation proofs fail correctly |
+| 2 | Parametric `RoomModel`, CPU `Raycaster`, `AnchorChunker`, `DegradationModel`, scripted `VirtualCamera`, generated fixtures + audit | Example journeys 1 to 3 green on a throwaway simulator; goldens exact; mutation proofs fail correctly |
 | 3 | `SyntheticCaptureSource` wired into Meshwise behind a Debug launch argument; preview view; `SimulatorControls` | A person can walk a virtual basement in the Meshwise simulator build and extract a plan |
 | 4 | CI on GitHub; README/REALISM/LICENSE; first tag | Green on `macos-15` from a clean clone; SPI builds |
 
@@ -248,8 +248,9 @@ RT-1/RT-2 before anything is merged.
 - Meshwise consumes the package as a local path dependency during development and a tagged
   version after the first release.
 
-## Open decisions for Luke
+## Decisions
 
-1. Name: `LieDAR` — DECIDED (Luke, 2026-09-12).
-2. Minimum iOS: 16 (package) while Meshwise stays iOS 18+ — fine, confirm.
-3. First public push: after phase 2 is green (a usable thing), not after phase 0 (a skeleton).
+1. Name: `LieDAR`, decided 2026-09-12.
+2. Minimum iOS 16 for the package, while Meshwise stays on iOS 18 and later.
+3. First public push after phase 2 is green, so the first thing a visitor sees is a usable
+   package rather than a skeleton.

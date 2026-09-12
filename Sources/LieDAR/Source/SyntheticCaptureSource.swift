@@ -45,7 +45,7 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
         public var loopClosure: LoopClosure?
         /// Pace samples to the wall clock at `camera.frameRate`. Off for tests and fixtures.
         public var realTime = true
-        /// Produce no samples and no anchors at all — the "Start, then Stop at once" path a
+        /// Produce no samples and no anchors at all, the "Start, then Stop at once" path a
         /// consumer must discard. The streams finish immediately on `start()`.
         public var zeroFrames = false
 

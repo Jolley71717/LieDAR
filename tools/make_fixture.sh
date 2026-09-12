@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make_fixture.sh <seed> — write Fixtures/synthetic-<seed>/ from the parametric room + scripted camera.
+# make_fixture.sh <seed> writes Fixtures/synthetic-<seed>/ from the parametric room + scripted camera.
 #
 # Runs `liedar-fixture` (Sources/LieDARFixtureTool, a thin command line over
 # SyntheticCaptureSource + ScriptedCapture + CaptureRecorder): RoomSpec.random(seed), a 3 s tour
@@ -60,7 +60,7 @@ echo "   $OUT: $FILES files, $BYTES bytes ($KB KB), $FRAMES frames, $ANCHORS anc
 [ "$FRAMES" -gt 0 ] || { echo "RESULT: FAIL no complete frames were written"; exit 1; }
 [ "$ANCHORS" -gt 0 ] || { echo "RESULT: FAIL no anchors were written"; exit 1; }
 if [ "$KB" -ge "$MAX_KB" ]; then
-  echo "RESULT: FAIL fixture is $KB KB, limit $MAX_KB KB — shorten the tour or the depth map"
+  echo "RESULT: FAIL fixture is $KB KB, limit $MAX_KB KB. Shorten the tour or the depth map"
   exit 1
 fi
 rm -rf "$LOGDIR"

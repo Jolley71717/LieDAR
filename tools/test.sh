@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test.sh — build and test LieDAR on macOS, then test it on a throwaway iOS simulator.
+# test.sh builds and tests LieDAR on macOS, then tests it on a throwaway iOS simulator.
 #
 # Legs, in order:
 #   1. swift build -Xswiftc -warnings-as-errors   (macOS, warnings are errors)
@@ -32,7 +32,7 @@ trap cleanup EXIT
 # macOS has no GNU timeout; perl's alarm is always there. Exit 142 means the deadline hit.
 with_deadline() { perl -e 'alarm shift; exec @ARGV' "$TIMEOUT" "$@"; }
 
-# "Executed N tests, with M failures" — the last such line is the suite total.
+# "Executed N tests, with M failures". The last such line is the suite total.
 counts() {
   grep -E 'Executed [0-9]+ tests?, with ([0-9]+ tests? skipped and )?[0-9]+ failures?' "$1" | tail -1 \
     | sed -E 's/.*Executed ([0-9]+) tests?, with ([0-9]+ tests? skipped and )?([0-9]+) failures?.*/\1 \3/'

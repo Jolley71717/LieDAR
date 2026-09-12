@@ -72,7 +72,7 @@ public struct CameraPath: Sendable, Equatable {
     }
 
     /// Seconds per leg of a `tour`: a 1.6 m step and a quarter turn take this long, which is
-    /// about 1.1 m/s and 65°/s — under the excessive-motion thresholds with sway on top.
+    /// about 1.1 m/s and 65°/s, which stays under the excessive-motion thresholds with sway on top.
     public static let tourLegSeconds: TimeInterval = 1.5
 
     /// A tour of `spec` at a person's pace: a still second for tracking to initialise, then as
@@ -123,7 +123,7 @@ public struct VirtualCamera: Sendable, Equatable {
         public var maxLinearSpeed: Float = 1.5
         /// Angular speed (degrees per second) above which a tick reports `limited(excessiveMotion)`.
         public var maxAngularSpeedDegrees: Float = 90
-        /// Timestamp of tick 0 — ARKit's clock is seconds since boot, so a large number.
+        /// Timestamp of tick 0. ARKit's clock is seconds since boot, so a large number.
         public var timestampOrigin: TimeInterval = 1000
 
         public init() {}
