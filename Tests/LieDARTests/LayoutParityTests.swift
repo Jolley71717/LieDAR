@@ -13,8 +13,16 @@ final class LayoutParityTests: XCTestCase {
         if let override = environment["LIEDAR_PARITY_CAPTURE"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
-        // The user's real home, even inside a simulator where HOME is the sandbox.
-        guard let home = getpwuid(getuid())?.pointee.pw_dir.map({ String(cString: $0) }) else { return nil }
+        // The user's real home: the simulator exports the host's as SIMULATOR_HOST_HOME (HOME
+        // there is the sandbox); on macOS the password database answers.
+        let home: String
+        if let hostHome = environment["SIMULATOR_HOST_HOME"], !hostHome.isEmpty {
+            home = hostHome
+        } else if let pw = getpwuid(getuid())?.pointee.pw_dir.map({ String(cString: $0) }) {
+            home = pw
+        } else {
+            return nil
+        }
         return URL(fileURLWithPath: home, isDirectory: true)
             .appendingPathComponent("git/meshwise/samples/full", isDirectory: true)
     }
