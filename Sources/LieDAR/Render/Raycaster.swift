@@ -69,7 +69,7 @@ public final class Raycaster: Sendable {
     public let model: RoomModel
     public let confidenceModel: ConfidenceModel
 
-    // Per-triangle: v0, e1 = v1 − v0, e2 = v2 − v0, unit normal — 12 floats, in model order.
+    // Per-triangle: v0, e1 = v1 − v0, e2 = v2 − v0, unit normal. 12 floats, in model order.
     private let triangleData: [Float]
     // Flat BVH. Node i: bounds[6i..<6i+6]; `first[i]` is the first index into `order` for a
     // leaf (count[i] > 0) or the right child for an interior node (count[i] == 0, left = i + 1).

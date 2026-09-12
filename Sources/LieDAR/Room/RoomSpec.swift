@@ -24,8 +24,8 @@ public struct RoomSpec: Sendable, Equatable {
         }
     }
 
-    /// A door or window in a wall. Its surface is meshed and classified — a closed door, a
-    /// pane — so the room stays closed and every ray hits something.
+    /// A door or window in a wall. Its surface is meshed and classified, as a closed door or a
+    /// pane, so the room stays closed and every ray hits something.
     public struct WallOpening: Sendable, Equatable {
         public enum Kind: Sendable, Equatable {
             case door
@@ -68,7 +68,7 @@ public struct RoomSpec: Sendable, Equatable {
         }
     }
 
-    /// A box hanging under the ceiling across the whole room along one axis — a duct or beam
+    /// A box hanging under the ceiling across the whole room along one axis, a duct or beam
     /// enclosure. Its underside is classified `ceiling`, its sides `wall`.
     public struct Bulkhead: Sendable, Equatable {
         public enum Axis: Sendable, Equatable {

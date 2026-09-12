@@ -5,8 +5,8 @@ import simd
 /// triangles are pre-chunked into blocks of about a metre on a 3-D grid; a block becomes an
 /// anchor (`.added`) once the camera has seen at least `discoveryThreshold` of its triangles,
 /// and is re-emitted (`.updated`) with more triangles as more are seen. Blocks overlap their
-/// neighbours by `overlapMargin`, so triangles near a block boundary appear in two anchors —
-/// the duplicates a PLY merge must survive. Occasionally an update is instead a `.removed` of
+/// neighbours by `overlapMargin`, so triangles near a block boundary appear in two anchors,
+/// which are the duplicates a PLY merge must survive. Occasionally an update is instead a `.removed` of
 /// the old id followed by an `.added` under a fresh, seeded UUID (ARKit does this too). A
 /// loop-closure event translates every anchor at once.
 ///

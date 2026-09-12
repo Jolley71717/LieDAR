@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 /// A pinhole camera for an image of `imageResolution` pixels: `[fx 0 0  0 fy 0  cx cy 1]`
-/// column-major, pixel origin top-left, u right, v down, landscape — the on-disk `intrinsics`.
+/// column-major, pixel origin top-left, u right, v down, landscape, matching the on-disk `intrinsics`.
 public struct CameraIntrinsics: Sendable, Equatable {
     public var fx: Float
     public var fy: Float
@@ -22,7 +22,7 @@ public struct CameraIntrinsics: Sendable, Equatable {
     /// of about 1340 px (horizontal field of view ≈ 71°) and the principal point near the
     /// centre. Source: `ARCamera.intrinsics` from an iPhone 15 Pro-class device reads
     /// fx = fy ≈ 1343, cx ≈ 964, cy ≈ 727 at 1920 × 1440; the values here are rounded to
-    /// clean synthetic constants — they are not copied from any capture. The LiDAR depth map
+    /// clean synthetic constants. They are not copied from any capture. The LiDAR depth map
     /// is 256 × 192 with the same field of view, which is `depth` below.
     public static let iPhonePro = CameraIntrinsics(fx: 1340, fy: 1340, cx: 960, cy: 720,
                                                    imageResolution: PixelSize(width: 1920, height: 1440))

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mutation_check.sh — prove the realism tests can fail.
+# mutation_check.sh proves the realism tests can fail.
 #
 # A test that passes is only evidence if it would have failed without the code it guards.
 # This script mutates one line at a time (removes it, or replaces it with a broken version),
@@ -72,7 +72,7 @@ restore_all() {
   for i in "${!FILES[@]}"; do
     cp "${BACKUPS[$i]}" "${FILES[$i]}"
     if ! cmp -s "${BACKUPS[$i]}" "${FILES[$i]}"; then
-      echo "RESTORE FAILED: ${FILES[$i]} differs from its backup ${BACKUPS[$i]} — inspect it before committing anything"
+      echo "RESTORE FAILED: ${FILES[$i]} differs from its backup ${BACKUPS[$i]}. Inspect it before committing anything"
       exit 1
     fi
   done
@@ -109,7 +109,7 @@ for CASE in "${CASES[@]}"; do
   echo
   echo "== case $LABEL =="
   N="$(grep -cxF "$LINE" "$FILE")"
-  [ "$N" -eq 1 ] || { echo "RESULT: FAIL expected exactly one line '$(echo "$LINE" | sed 's/^ *//')' in $FILE, found $N — script needs updating"; exit 1; }
+  [ "$N" -eq 1 ] || { echo "RESULT: FAIL expected exactly one line '$(echo "$LINE" | sed 's/^ *//')' in $FILE, found $N. Script needs updating"; exit 1; }
   LINENO_IN_FILE="$(grep -nxF "$LINE" "$FILE" | cut -d: -f1)"
 
   if [ -z "$REPLACEMENT" ]; then
@@ -135,13 +135,13 @@ for CASE in "${CASES[@]}"; do
 
   if grep -qE "error: (cannot find|expected|use of unresolved|value of type|missing)" "$CASELOG"; then
     grep -E "error:" "$CASELOG" | head -5 | sed 's/^/   /'
-    echo "RESULT: FAIL case $LABEL: the mutated build did not compile — a build error, not a test verdict"; exit 1
+    echo "RESULT: FAIL case $LABEL: the mutated build did not compile. A build error, not a test verdict"; exit 1
   fi
   if [ "$P" -eq 0 ] && [ "$F" -eq 0 ]; then
-    echo "RESULT: FAIL case $LABEL: the test did not run at all — check the --filter path"; exit 1
+    echo "RESULT: FAIL case $LABEL: the test did not run at all. Check the --filter path"; exit 1
   fi
   if [ "$F" -eq 0 ]; then
-    echo "RESULT: FAIL case $LABEL: the test PASSED with the line removed — it cannot detect this bug"; exit 1
+    echo "RESULT: FAIL case $LABEL: the test PASSED with the line removed, so it cannot detect this bug"; exit 1
   fi
   if ! grep -q "$NEEDLE" "$CASELOG"; then
     grep -E "XCTAssert.*failed" "$CASELOG" | head -3 | sed 's/^/   /'

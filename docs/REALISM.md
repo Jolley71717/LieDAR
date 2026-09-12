@@ -21,15 +21,15 @@ source moves it from "the only test" to "the confirmation", and no further.
   the millimetre for the whole capture. A real session accumulates drift, jumps on
   relocalisation, and reports `limited(relocalizing)` and `limited(insufficientFeatures)`; the
   script never emits those two states. The one scripted `loopClosure` moves every anchor by a
-  fixed translation at one instant — the *shape* of a correction, not a real map optimisation
+  fixed translation at one instant. That is the *shape* of a correction, not a real map optimisation
   (which also rotates, scales locally, and re-triangulates).
 - **Reproduce lighting.** The colour image is flat-shaded by class: one colour per surface type,
   no shading, no texture, no exposure change, no motion blur. It exists so the JPEG path runs and
   so a preview shows something; a feature detector or a colour-based classifier learns nothing
   from it.
 - **Reproduce reflective, transparent or textureless failures.** Windows are meshed as opaque
-  panes and classified `window`; mirrors, glass tables and glossy floors — where LiDAR returns
-  nothing or returns the reflected geometry — are simply not in the model.
+  panes and classified `window`. Mirrors, glass tables and glossy floors, where LiDAR returns
+  nothing or returns the reflected geometry, are simply not in the model.
 - **Reproduce reconstruction detail.** Real scene reconstruction produces ~5 cm triangles that
   wobble, smooth over edges, merge nearby surfaces and lag the camera by a second or more. The
   room here is planar quads split into 0.5 m cells, every edge crisp, every surface exactly
@@ -46,7 +46,7 @@ source moves it from "the only test" to "the confirmation", and no further.
 
 | Model | What it stands in for | Parameters (defaults) |
 |---|---|---|
-| `Raycaster.ConfidenceModel` | ARKit's `confidenceMap` — undocumented, but it falls off with range and with grazing angle | high ≤ 3 m and \|cos θ\| ≥ 0.5; medium ≤ 5 m and \|cos θ\| ≥ 0.2; else low |
+| `Raycaster.ConfidenceModel` | ARKit's `confidenceMap` is undocumented, but it falls off with range and with grazing angle | high ≤ 3 m and \|cos θ\| ≥ 0.5; medium ≤ 5 m and \|cos θ\| ≥ 0.2; else low |
 | `VirtualCamera` sway | The unsteadiness of a hand-held phone | 2 cm sideways at 0.7 Hz, 1.5 cm vertical at 1.1 Hz |
 | Tracking script | A session's first second and its reaction to fast motion | tick 0 `notAvailable`; < 1 s `limited.initializing`; > 1.5 m/s or > 90°/s `limited.excessiveMotion`; otherwise `normal` |
 | `AnchorChunker` blocks | ARKit's roughly-metre-sized mesh anchors | 1 m cells, grid shifted half a cell so room surfaces sit mid-block |
@@ -72,7 +72,7 @@ a pose and, from there, in which frames pass gating.
 - A generated fixture for a given seed and tour (`tools/make_fixture.sh` generates twice and
   diffs).
 - The tour's poses and tracking states for a given path and rate.
-- The anchor set — count, ids, geometry and bounds — for a given room, path and seed.
+- The anchor set, meaning count, ids, geometry and bounds, for a given room, path and seed.
 
 ## Reading a synthetic capture
 
