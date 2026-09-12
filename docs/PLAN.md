@@ -71,7 +71,7 @@ The package builds in **Swift 6 language mode from day one**.
 ### Deterministic depth from a CPU raycaster (RT-9)
 
 Canonical depth, confidence and mesh come from a CPU raycaster over the room's triangles:
-~49k rays × < 200 triangles ≈ 10–20 ms per frame, bit-identical on every arm64 machine, no Metal. The
+~49k rays × < 200 triangles ≈ 10 to 20 ms per frame, bit-identical on every arm64 machine, no Metal. The
 GPU renders **only the on-screen preview**. Golden-value tests therefore do not drift between an
 M4 and a CI runner, and x86_64/Rosetta simulators (where Metal is unavailable) still run every
 test.
@@ -145,20 +145,20 @@ After the 2a review (three required changes: timing test out of the default suit
 golden with a grazing-angle pixel and a mutation proof for it, arm64 wording) the following was
 run locally on an M4 Pro with Xcode 26.5 (17F42), Swift 6.3.2, in this order, each exit 0:
 
-- `swift build -Xswiftc -warnings-as-errors` — clean, 0 warnings.
-- `LIEDAR_SIM_NAME=LieDAR-2a bash tools/test.sh` — `RESULT: PASS macOS 80 tests/0 failures/1 skipped;
-  simulator 80 tests/0 failures/1 skipped (iPhone-17-Pro-Max, iOS 26.5)`; the one skip on each
+- `swift build -Xswiftc -warnings-as-errors`: clean, 0 warnings.
+- `LIEDAR_SIM_NAME=LieDAR-2a bash tools/test.sh`: `RESULT: PASS macOS 80 tests/0 failures/1 skipped;
+  simulator 80 tests/0 failures/1 skipped (iPhone-17-Pro-Max, iOS 26.5)`. The one skip on each
   leg is `RaycasterTests/testRenderTimeIsWithinBudget`, which skips without
-  `LIEDAR_ASSERT_TIMING=1`. The parity tests ran (a consumer capture was present).
-- `bash tools/timing_check.sh` — `RESULT: PASS raycaster 11.79 ms/frame in release (256×192,
-  ceiling 20 ms), 245759 hits over 5 frames` (245 760 pixels; one seam miss).
-- `bash tools/mutation_check.sh` — `RESULT: PASS 4/4 tests fail on their named assertion when
+  `LIEDAR_ASSERT_TIMING=1`. The parity tests ran because a consumer capture was present.
+- `bash tools/timing_check.sh`: `RESULT: PASS raycaster 11.79 ms/frame in release (256×192,
+  ceiling 20 ms), 245759 hits over 5 frames` (245 760 pixels, one seam miss).
+- `bash tools/mutation_check.sh`: `RESULT: PASS 4/4 tests fail on their named assertion when
   their line is mutated, files restored`. Case D replaces `mediumCosine` 0.2 with 0.0 in
-  `Raycaster.ConfidenceModel.init`; `testConfidenceMatchesGoldenBytes` fails on
+  `Raycaster.ConfidenceModel.init`, and `testConfidenceMatchesGoldenBytes` fails on
   `corridor pixel (105, 96)` (got 1, expected 0). The canonical frame's confidence histogram is
-  30 541 high / 18 611 medium / 0 low, so `canonical-conf.bin` alone cannot see that mutation;
-  the corridor pixel is what catches it.
-- `bash tools/fixture_audit.sh` — `RESULT: PASS 165 file(s) under Fixtures/`.
+  30 541 high / 18 611 medium / 0 low, so `canonical-conf.bin` alone cannot see that mutation.
+  The corridor pixel is what catches it.
+- `bash tools/fixture_audit.sh`: `RESULT: PASS 165 file(s) under Fixtures/`.
 
 ## Repository layout (RT-8)
 
