@@ -30,7 +30,7 @@ final class CompletenessMarkerTests: XCTestCase {
         let folder = try makeScratchDirectory()
         let recorder = try CaptureRecorder(folderURL: folder, options: .init(saveColorImages: false))
         // Pull the frames directory out from under the writer: the depth write fails, so the
-        // JSON — which comes after it — must never be written.
+        // JSON, which comes after it, must never be written.
         try FileManager.default.removeItem(at: folder.appendingPathComponent("frames"))
         XCTAssertTrue(recorder.write(Golden.frame(index: 0)), "accepted: the failure happens on the queue")
         try await recorder.finish(manifest: Golden.manifest(frameCount: 1, summary: .init()))

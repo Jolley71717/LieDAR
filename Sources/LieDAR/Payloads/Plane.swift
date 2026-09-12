@@ -2,8 +2,8 @@ import Foundation
 
 /// A single image plane copied out of whatever produced it: raw bytes plus the shape needed to
 /// read them. `Element` is the per-pixel scalar (`Float32` for depth, `UInt8` for confidence and
-/// for colour planes). Rows may carry padding — `bytesPerRow` may exceed
-/// `width * MemoryLayout<Element>.size` — exactly as a pixel buffer's rows do; `tightlyPacked()`
+/// for colour planes). Rows may carry padding, so `bytesPerRow` may exceed
+/// `width * MemoryLayout<Element>.size`, exactly as a pixel buffer's rows do. `tightlyPacked()`
 /// removes it, and that is what goes to disk.
 ///
 /// The type is a plain value with no reference to the buffer it came from, which is the whole
@@ -22,7 +22,7 @@ public struct Plane<Element: Sendable>: Sendable, Equatable {
     public static var bytesPerPixel: Int { MemoryLayout<Element>.size }
 
     /// Wraps existing bytes. Traps if `data` is shorter than `height * bytesPerRow` or a row
-    /// cannot hold `width` pixels — those are programming errors at the copy site, not runtime
+    /// cannot hold `width` pixels. Those are programming errors at the copy site, not runtime
     /// conditions.
     public init(data: Data, width: Int, height: Int, bytesPerRow: Int) {
         precondition(width >= 0 && height >= 0 && bytesPerRow >= 0, "negative plane dimension")

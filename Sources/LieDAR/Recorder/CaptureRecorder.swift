@@ -3,7 +3,7 @@ import Foundation
 /// Writes a capture folder in `CaptureFormat` from `FramePayload` / `MeshAnchorPayload` values.
 ///
 /// All file I/O runs on one private serial queue. `write(_:)` is non-blocking: it takes the
-/// frame — already a plain value, so nothing has to be copied under a lock — and returns whether
+/// frame, which is already a plain value so nothing has to be copied under a lock, and returns whether
 /// the frame was accepted. At most `Options.maxPendingFrames` frames may be queued; a frame
 /// offered past that is **dropped**, `write` returns `false`, and `droppedFrameCount` goes up.
 /// That is the backpressure rule: a slow disk costs frames, not memory or latency.
@@ -97,8 +97,8 @@ public final class CaptureRecorder: @unchecked Sendable {
 
     // MARK: Frames
 
-    /// Queues the frame's files for writing under `frame.meta.index`. Returns `false` — and
-    /// counts a drop — when `maxPendingFrames` frames are still in flight or the recorder has
+    /// Queues the frame's files for writing under `frame.meta.index`. Returns `false`, and
+    /// counts a drop, when `maxPendingFrames` frames are still in flight or the recorder has
     /// finished. Callers that number frames themselves should only advance on `true`.
     @discardableResult
     public func write(_ frame: FramePayload) -> Bool {

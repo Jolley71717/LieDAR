@@ -2,7 +2,7 @@ import Metal
 import XCTest
 
 /// Probe: can this machine (or simulator) give us a Metal device, compile a shader from a source
-/// string, and read a depth texture back? Skips — never fails — with the exact reason
+/// string, and read a depth texture back? It skips, and never fails, with the exact reason
 /// "no Metal device" when there is none, so CI reports BLOCKED rather than red. The package's
 /// tests do not depend on Metal; this tells us whether the preview path can.
 final class MetalAvailabilityTests: XCTestCase {
