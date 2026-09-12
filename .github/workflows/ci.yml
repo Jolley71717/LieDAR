@@ -85,7 +85,8 @@ jobs:
         run: bash tools/journeys.sh | tee journeys.log
       - name: Record verdict
         if: always()
-        run: grep -E \'^RESULT: \' journeys.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          grep -E "^RESULT: " journeys.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   fixture-audit:
     name: fixture audit
     runs-on: macos-15
@@ -99,7 +100,8 @@ jobs:
         run: bash tools/fixture_audit.sh | tee fixture-audit.log
       - name: Record verdict
         if: always()
-        run: grep -E \'^RESULT: \' fixture-audit.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          grep -E "^RESULT: " fixture-audit.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   mutation:
     name: journey mutation proof
     runs-on: macos-15
@@ -115,4 +117,5 @@ jobs:
         run: bash tools/journey_mutation.sh | tee mutation.log
       - name: Record verdict
         if: always()
-        run: grep -E \'^RESULT: \' mutation.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          grep -E "^RESULT: " mutation.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
