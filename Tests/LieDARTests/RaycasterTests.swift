@@ -3,13 +3,15 @@ import simd
 import XCTest
 @testable import LieDAR
 
-/// The raycaster is deterministic, so its depth for the canonical room and pose is pinned to
-/// the exact bytes in `Goldens/canonical-depth.bin` (256 × 192 × 4 = 196 608 bytes), not to a
-/// tolerance. Regenerate the golden — and say so in the commit — only when the raycaster's
-/// numerics change on purpose: `LIEDAR_GOLDEN_OUT=Tests/LieDARTests/Goldens swift test --filter
-/// RaycasterTests/testDepthMatchesGoldenBytes`.
+/// The raycaster is deterministic, so its depth and confidence for the canonical room and pose
+/// are pinned to exact bytes — `Goldens/canonical-depth.bin` (256 × 192 × 4 = 196 608 bytes) and
+/// `Goldens/canonical-conf.bin` (256 × 192 = 49 152 bytes) — not to a tolerance. Regenerate a
+/// golden — and say so in the commit — only when the raycaster's numerics or the confidence
+/// model change on purpose: `LIEDAR_GOLDEN_OUT=Tests/LieDARTests/Goldens swift test --filter
+/// RaycasterTests/testDepthMatchesGoldenBytes` (and `.../testConfidenceMatchesGoldenBytes`).
 final class RaycasterTests: XCTestCase {
     static let goldenName = "canonical-depth.bin"
+    static let confidenceGoldenName = "canonical-conf.bin"
 
     /// Identity rotation, 3 m in front of the south wall at chest height, facing it: the
     /// canonical pose. Built from constants, not `lookAt`, so no trigonometry is involved.
@@ -42,6 +44,44 @@ final class RaycasterTests: XCTestCase {
             XCTFail("depth bytes differ from golden; first difference at byte \(first) (pixel \(pixel % 256), \(pixel / 256)): "
                     + "golden \(golden.count > 0 ? String(describing: frame.depth[pixel]) : "?")")
         }
+    }
+
+    /// The confidence bytes for the canonical frame, exact, plus one named pixel down a
+    /// corridor at a grazing angle. The canonical frame never sees a surface within 5 m at
+    /// |cos θ| < 0.2 (its floor and bulkhead are all ≥ 0.4), so the golden alone cannot tell
+    /// `mediumCosine` 0.2 from 0.0; the corridor pixel is the band boundary the golden misses.
+    func testConfidenceMatchesGoldenBytes() throws {
+        let frame = Raycaster(model: room).render(cameraToWorld: Self.canonicalPose, intrinsics: .iPhonePro)
+        let bytes = frame.confidencePlane().tightlyPacked()
+        XCTAssertEqual(bytes.count, 256 * 192)
+
+        if let out = ProcessInfo.processInfo.environment["LIEDAR_GOLDEN_OUT"] {
+            let url = URL(fileURLWithPath: out).appendingPathComponent(Self.confidenceGoldenName)
+            try bytes.write(to: url)
+            throw XCTSkip("wrote golden to \(url.path); re-run without LIEDAR_GOLDEN_OUT")
+        }
+        guard let goldenURL = Bundle.module.url(forResource: "canonical-conf", withExtension: "bin", subdirectory: "Goldens") else {
+            return XCTFail("golden \(Self.confidenceGoldenName) is missing from the test bundle")
+        }
+        let golden = try Data(contentsOf: goldenURL)
+        XCTAssertEqual(golden.count, bytes.count, "confidence golden size")
+        if golden != bytes {
+            let first = zip(golden, bytes).enumerated().first { $0.element.0 != $0.element.1 }?.offset ?? -1
+            XCTFail("confidence bytes differ from golden; first difference at pixel (\(first % 256), \(first / 256)): "
+                    + "golden \(first >= 0 ? String(golden[first]) : "?"), got \(first >= 0 ? String(bytes[first]) : "?")")
+        }
+
+        // Corridor pixel: a 2 m × 12 m corridor, camera 0.5 m from the west wall looking down
+        // it. Column 105's ray has dx = (105.5 − 128) / 178.67 = −0.126, so it meets the west
+        // wall 3.97 m out — inside `mediumRange` — at |cos θ| = 0.125, under `mediumCosine`
+        // (0.2). That is the low band by angle alone; with `mediumCosine` at 0 it would be medium.
+        let corridor = Raycaster(model: .parametric(RoomSpec(width: 2, depth: 12, ceilingHeight: 2.4)))
+        let pose = VirtualCamera.lookAt(from: SIMD3(0.5, 1.4, 11.5), to: SIMD3(0.5, 1.4, 0))
+        let side = corridor.render(cameraToWorld: pose, intrinsics: .iPhonePro)
+        XCTAssertEqual(side.depthAt(x: 105, y: 96), 3.97, accuracy: 0.01, "corridor pixel (105, 96) depth")
+        XCTAssertEqual(corridor.model.classes[Int(side.triangleAt(x: 105, y: 96))], .wall, "corridor pixel (105, 96) is the side wall")
+        XCTAssertEqual(side.confidence[96 * 256 + 105], 0,
+                       "corridor pixel (105, 96): side wall 3.97 m out at |cos θ| ≈ 0.125 is low by grazing angle")
     }
 
     func testCanonicalDepthHasTheGeometryItShould() {
@@ -112,16 +152,24 @@ final class RaycasterTests: XCTestCase {
     // MARK: Timing
 
     /// PLAN budgets ≤ 20 ms per 256 × 192 frame on an M-series Mac. That is a release-build
-    /// figure; the unit suite runs unoptimised, where the same loop is roughly 10× slower, so
-    /// the ceiling asserted here depends on the build. Both numbers are reported in the log.
-    func testRenderTimeIsWithinBudget() {
+    /// figure, and a wall-clock figure, so it is not part of the default suite: it runs only
+    /// when `LIEDAR_ASSERT_TIMING=1` is set (`tools/timing_check.sh` does that in a release
+    /// build) and skips otherwise, so a loaded CI runner cannot fail a correctness run. The
+    /// unit suite runs unoptimised, where the same loop is roughly 10× slower, so the ceiling
+    /// asserted depends on the build. Both numbers are reported in the log. Every timed frame
+    /// must actually hit the room: a raycaster that returns nothing cannot post a fast time.
+    func testRenderTimeIsWithinBudget() throws {
+        guard ProcessInfo.processInfo.environment["LIEDAR_ASSERT_TIMING"] == "1" else {
+            throw XCTSkip("timing is asserted only with LIEDAR_ASSERT_TIMING=1 (see tools/timing_check.sh); wall-clock limits do not belong in the default suite")
+        }
         let raycaster = Raycaster(model: room)
         let camera = VirtualCamera(path: .tour(of: .canonical))
         let poses = (0..<5).map { camera.pose(at: Double($0) * 1.2) }
         // Warm up, then time the average of five frames from different viewpoints.
         _ = raycaster.render(cameraToWorld: poses[0], intrinsics: .iPhonePro)
+        var hits = 0
         let start = DispatchTime.now().uptimeNanoseconds
-        for pose in poses { _ = raycaster.render(cameraToWorld: pose, intrinsics: .iPhonePro) }
+        for pose in poses { hits += raycaster.render(cameraToWorld: pose, intrinsics: .iPhonePro).hitCount }
         let ms = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6 / Double(poses.count)
         #if DEBUG
         let ceiling = 400.0
@@ -130,7 +178,11 @@ final class RaycasterTests: XCTestCase {
         let ceiling = 20.0
         let build = "release"
         #endif
-        print("RAYCASTER_TIMING: \(String(format: "%.2f", ms)) ms/frame (256×192, \(room.triangleCount) triangles, \(build), ceiling \(ceiling) ms)")
+        print("RAYCASTER_TIMING: \(String(format: "%.2f", ms)) ms/frame (256×192, \(room.triangleCount) triangles, \(build), ceiling \(ceiling) ms, \(hits) hits over \(poses.count) frames)")
+        XCTAssertGreaterThan(hits, 0, "the timed frames hit nothing — the time measures an empty render")
+        // A closed room leaves essentially no misses; a ray landing exactly on a triangle seam
+        // can miss (one pixel in 245 760 on the tour), so the floor is 99 %, not 100 %.
+        XCTAssertGreaterThan(hits, poses.count * 256 * 192 * 99 / 100, "fewer than 99 % of the timed pixels hit the room")
         XCTAssertLessThan(ms, ceiling, "raycaster averaged \(ms) ms per frame in a \(build) build")
         measure {
             _ = raycaster.render(cameraToWorld: poses[1], intrinsics: .iPhonePro)
