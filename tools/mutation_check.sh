@@ -23,8 +23,11 @@
 #      (every hit within mediumRange is at least medium; the low-by-grazing-angle band vanishes;
 #      the canonical golden cannot see this, because that frame has no such pixel)
 #      -> RaycasterTests/testConfidenceMatchesGoldenBytes must fail on "corridor pixel (105, 96)"
+#   E  replace `seamTolerance: Float = 1e-5` with `= 0` in Raycaster (no second pass for a
+#      ray on a shared edge; the tour's seam pixel reads depth 0 again)
+#      -> RaycasterTests/testRayOnASharedEdgeStillHits must fail on "shared edge"
 #
-# Before mutating, the four tests are run once unmodified and must pass, so a red suite is
+# Before mutating, the five tests are run once unmodified and must pass, so a red suite is
 # reported as such rather than as a "successful" mutation.
 #
 # Usage: tools/mutation_check.sh          (takes no arguments; macOS `swift test`, no simulator)
@@ -51,6 +54,7 @@ CASES=(
   "Sources/LieDAR/Realism/DegradationModel.swift~                out[i] = MeshClassification.none.rawValue~~DegradationTests/testUnlabelledFractionMatchesTheModelForASeed~unlabelled fraction~B: degradation model"
   "Sources/LieDAR/Source/FrameGate.swift~            guard moved || turned || stale else { return false }~~SyntheticSourceTests/testThreeSecondCaptureWritesTheExpectedFolder~frames written~C: gating threshold"
   "Sources/LieDAR/Render/Raycaster.swift~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.0) {~RaycasterTests/testConfidenceMatchesGoldenBytes~corridor pixel (105, 96)~D: confidence mediumCosine 0.2 -> 0.0"
+  "Sources/LieDAR/Render/Raycaster.swift~    private static let seamTolerance: Float = 1e-5~    private static let seamTolerance: Float = 0~RaycasterTests/testRayOnASharedEdgeStillHits~shared edge~E: shared-edge pass seamTolerance 1e-5 -> 0"
 )
 
 # Snapshot every file up front; restore all of them on every exit path and prove it.

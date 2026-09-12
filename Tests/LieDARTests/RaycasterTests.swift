@@ -149,6 +149,23 @@ final class RaycasterTests: XCTestCase {
         XCTAssertEqual(frame.hitCount, 16 * 4, "rows 8…11 look down steeply enough to hit the floor within its 5 m; row 7 overshoots")
     }
 
+    /// Regression for the one ray in the tour that missed a closed room. Frame 3 of the timed
+    /// tour (t = 3.6 s), pixel (161, 148), lands on the north wall exactly on the edge
+    /// y = 0.4 shared by two wall triangles; the strict intersector rejected it on both sides
+    /// (u + v = 1.0000003 on one, v = −2.1e−7 on the other) and wrote depth 0. The room is
+    /// closed (every single-use edge is a T-junction seam or lies on another face), so the
+    /// cause is the intersector, and the second pass with `seamTolerance` must catch it.
+    func testRayOnASharedEdgeStillHits() {
+        let raycaster = Raycaster(model: room)
+        let camera = VirtualCamera(path: .tour(of: .canonical))
+        let frame = raycaster.render(cameraToWorld: camera.pose(at: 3.6), intrinsics: .iPhonePro)
+        let id = frame.triangleAt(x: 161, y: 148)
+        XCTAssertGreaterThanOrEqual(id, 0, "shared edge ray at (161, 148) must hit, not read as a hole in the wall")
+        XCTAssertEqual(frame.depthAt(x: 161, y: 148), 1.87585, accuracy: 1e-4, "shared edge ray depth to the north wall")
+        if id >= 0 { XCTAssertEqual(room.classes[Int(id)], .wall, "shared edge ray lands on the wall") }
+        XCTAssertEqual(frame.hitCount, frame.pixelCount, "a closed room leaves no misses in this frame")
+    }
+
     // MARK: Timing
 
     /// PLAN budgets ≤ 20 ms per 256 × 192 frame on an M-series Mac. That is a release-build
@@ -180,9 +197,9 @@ final class RaycasterTests: XCTestCase {
         #endif
         print("RAYCASTER_TIMING: \(String(format: "%.2f", ms)) ms/frame (256×192, \(room.triangleCount) triangles, \(build), ceiling \(ceiling) ms, \(hits) hits over \(poses.count) frames)")
         XCTAssertGreaterThan(hits, 0, "the timed frames hit nothing, so the time measures an empty render")
-        // A closed room leaves essentially no misses; a ray landing exactly on a triangle seam
-        // can miss (one pixel in 245 760 on the tour), so the floor is 99 %, not 100 %.
-        XCTAssertGreaterThan(hits, poses.count * 256 * 192 * 99 / 100, "fewer than 99 % of the timed pixels hit the room")
+        // The canonical room is closed, and the raycaster's shared-edge pass means a ray on a
+        // triangle seam still hits (testRayOnASharedEdgeStillHits), so every pixel is a hit.
+        XCTAssertEqual(hits, poses.count * 256 * 192, "a closed room leaves no misses; every timed pixel must be a hit")
         XCTAssertLessThan(ms, ceiling, "raycaster averaged \(ms) ms per frame in a \(build) build")
         measure {
             _ = raycaster.render(cameraToWorld: poses[1], intrinsics: .iPhonePro)
