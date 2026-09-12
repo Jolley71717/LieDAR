@@ -2,8 +2,8 @@ import Foundation
 import simd
 
 /// One captured frame, fully copied out of its source. Everything a `CaptureRecorder` needs to
-/// write `frames/NNNNNN.*`, and nothing that refers back to the producer — no pixel buffer, no
-/// ARKit frame — so the value can be handed to another task or actor freely (RT-3).
+/// write `frames/NNNNNN.*`, and nothing that refers back to the producer. No pixel buffer and no
+/// ARKit frame, so the value can be handed to another task or actor freely (RT-3).
 public struct FramePayload: Sendable {
     /// Distance from the camera plane in metres, one `Float32` per pixel. Typically 256 × 192.
     public var depth: Plane<Float32>
@@ -12,7 +12,7 @@ public struct FramePayload: Sendable {
     public var confidence: Plane<UInt8>?
     /// The colour image, if the source provides one. Its size should match `meta.imageResolution`.
     public var color: ColorPlanes?
-    /// Pose, intrinsics, timestamp and tracking state — the frame's `NNNNNN.json`.
+    /// Pose, intrinsics, timestamp and tracking state, written as the frame's `NNNNNN.json`.
     public var meta: FrameMeta
 
     public init(depth: Plane<Float32>, confidence: Plane<UInt8>?, color: ColorPlanes?, meta: FrameMeta) {
@@ -45,7 +45,7 @@ public enum TrackingState: String, Sendable, Codable, CaseIterable, Equatable {
     public var isNormal: Bool { self == .normal }
 }
 
-/// `frames/NNNNNN.json` — see `docs/CAPTURE_FORMAT.md`. Field names and types are the on-disk
+/// `frames/NNNNNN.json`, described in `docs/CAPTURE_FORMAT.md`. Field names and types are the on-disk
 /// contract; do not rename them.
 public struct FrameMeta: Codable, Sendable, Equatable {
     /// Frame index; also the zero-padded base name of the frame's files.

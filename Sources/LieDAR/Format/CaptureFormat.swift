@@ -1,6 +1,6 @@
 import Foundation
 
-/// The on-disk capture format — names, extensions, encoders and the class-colour table. The
+/// The on-disk capture format: names, extensions, encoders and the class-colour table. The
 /// prose contract is `docs/CAPTURE_FORMAT.md`; this type is its executable half. Everything here
 /// is readable on a Mac with no ARKit: raw little-endian arrays with no header, shapes in the
 /// JSON files beside them, metres everywhere, ARKit's world frame (right-handed, +Y up).
@@ -39,7 +39,7 @@ public enum CaptureFormat {
         return Int(name)
     }
 
-    /// Counts what is actually on disk. Cheap — two directory listings, no file contents. A
+    /// Counts what is actually on disk. Two directory listings, no file contents. A
     /// missing folder counts as zero rather than throwing. A frame counts only once its `.json`
     /// exists, because the recorder writes that last; an anchor counts by its `.vertices` file.
     /// Provenance: extracted from the first consumer's private implementation by the same
@@ -83,7 +83,7 @@ public enum CaptureFormat {
         MeshClassification.allCases.first { classificationColor($0.rawValue) == (r, g, b) } ?? .none
     }
 
-    /// Fresh encoder with the format's settings: ISO 8601 dates, pretty printed, sorted keys —
+    /// Fresh encoder with the format's settings: ISO 8601 dates, pretty printed, sorted keys,
     /// so every JSON file in a folder is byte-stable across writers.
     public static func makeJSONEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -112,7 +112,7 @@ public struct CaptureManifest: Codable, Sendable, Equatable {
     public var iosVersion: String
     public var startedAt: Date
     public var endedAt: Date
-    /// Frames ACCEPTED for writing. Truth is the folder — a frame whose write failed is absent
+    /// Frames ACCEPTED for writing. Truth is the folder, and a frame whose write failed is absent
     /// on disk; count `frames/*.json` to know what is really there.
     public var frameCount: Int
     public var meshAnchorCount: Int
@@ -186,7 +186,7 @@ public struct MeshAnchorMeta: Codable, Sendable, Equatable {
     public var transform: [Float]
     public var vertexCount: Int
     public var faceCount: Int
-    /// `"<identifier>.vertices"` — a plain file name inside `mesh/`, never a path.
+    /// `"<identifier>.vertices"`, a plain file name inside `mesh/`, never a path.
     public var verticesFile: String
     public var facesFile: String
     public var classesFile: String
@@ -231,7 +231,7 @@ public struct CaptureContents: Equatable, Sendable {
 
 /// What to do with a finished capture folder.
 public enum CaptureDisposition: Equatable, Sendable {
-    /// Frames and a mesh — keep it.
+    /// Frames and a mesh, so keep it.
     case keep
     /// Frames but no mesh anchor. Still usable: depth frames alone drive an offline
     /// reconstruction. The consumer should warn.

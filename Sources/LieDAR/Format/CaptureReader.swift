@@ -39,7 +39,7 @@ public struct CaptureReader: Sendable {
 
     // MARK: Manifest
 
-    /// Whether `capture.json` exists — the folder-level completeness marker.
+    /// Whether `capture.json` exists, which is the folder-level completeness marker.
     public var isFinished: Bool {
         FileManager.default.fileExists(atPath: folderURL.appendingPathComponent(CaptureFormat.manifestFile).path)
     }
@@ -86,7 +86,7 @@ public struct CaptureReader: Sendable {
     /// Indices of complete frames (those with a `.json`), ascending.
     public func completeFrameIndices() -> [Int] { frameStatuses().filter(\.isComplete).map(\.index) }
 
-    /// Indices that have binary files but no `.json` — frames a writer was interrupted on.
+    /// Indices that have binary files but no `.json`, meaning frames a writer was interrupted on.
     public func incompleteFrameIndices() -> [Int] { frameStatuses().filter { !$0.isComplete }.map(\.index) }
 
     public func frameURL(_ index: Int, extension ext: String) -> URL {

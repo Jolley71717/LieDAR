@@ -1,4 +1,4 @@
-// LieDARARKit — the on-device `CaptureSource` that wraps `ARSession` (phase 1).
+// LieDARARKit: the on-device `CaptureSource` that wraps `ARSession` (phase 1).
 //
 // Empty in phase 0. When it lands, everything ARKit-flavoured here is guarded with
 // `#if canImport(ARKit)` plus a runtime availability check, so the target keeps compiling on

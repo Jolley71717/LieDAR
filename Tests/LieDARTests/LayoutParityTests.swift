@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import LieDAR
 
-/// Reads — never copies — a capture written by the format's first consumer and checks this
+/// Reads, and never copies, a capture written by the format's first consumer, then checks this
 /// package's reader agrees with it. The folder is private and lives outside the repository;
 /// point `LIEDAR_PARITY_CAPTURE` at any capture folder. Skips, with a clear reason, when the
 /// variable is unset or the folder is missing (CI has none).

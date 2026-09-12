@@ -8,8 +8,8 @@ import simd
 /// which one it is.
 ///
 /// Lifecycle: check `isAvailable` (and `cameraAuthorized` when diagnosing an empty capture),
-/// `start()`, consume `samples` and `anchorEvents`, call `meshSnapshot()` at stop time — the mesh
-/// is asked for, not fished out of a frame — then `stop()`.
+/// `start()`, consume `samples` and `anchorEvents`, call `meshSnapshot()` at stop time, then
+/// `stop()`. The mesh is asked for, never fished out of a frame.
 public protocol CaptureSource: AnyObject, Sendable {
     /// Whether this source can produce data on this machine right now. Replaces the static
     /// "does this device support scene reconstruction" query, which is false on every simulator
@@ -51,7 +51,7 @@ public protocol CaptureSource: AnyObject, Sendable {
 /// or AppKit.
 public protocol CaptureViewRepresentable: AnyObject {}
 
-/// One camera frame as it arrives — pose, time and tracking only, so a consumer can decide
+/// One camera frame as it arrives. Pose, time and tracking only, so a consumer can decide
 /// whether to keep it before paying for the buffers. `materialize()` copies the depth,
 /// confidence and colour planes and must be called **while the producer's frame is still
 /// alive**; on ARKit that means synchronously in the delegate, which is why the closure and not

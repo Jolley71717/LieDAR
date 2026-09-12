@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-/// Turns `ColorPlanes` into a JPEG with CoreGraphics + ImageIO only — no UIKit, no CoreImage —
+/// Turns `ColorPlanes` into a JPEG with CoreGraphics and ImageIO only. No UIKit and no CoreImage,
 /// so the recorder builds and runs on macOS and in the simulator identically.
 enum JPEGEncoder {
     enum EncodeError: Error, Equatable, Sendable {

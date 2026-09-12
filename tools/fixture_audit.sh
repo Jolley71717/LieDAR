@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fixture_audit.sh — nothing recorded from a real place, and nothing large, under Fixtures/.
+# fixture_audit.sh: nothing recorded from a real place, and nothing large, under Fixtures/.
 #
 # Fails on: any .jpg/.jpeg; any worldmap.bin; any manifest (capture.json or any .json) carrying a
 # real device model string (iPhoneN,N / iPadN,N) or an iOS version string; any single file over

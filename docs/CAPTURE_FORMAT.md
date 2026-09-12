@@ -15,27 +15,27 @@ version 1/2 files of this spec unchanged; the package's `CaptureRecorder` writes
 
 ```
 <capture>/
-  capture.json                 manifest — written LAST; its presence means the capture finished
+  capture.json                 manifest, written LAST. Its presence means the capture finished
   mesh.ply                     merged mesh of every anchor in world space (ASCII PLY, derived)
   frames/
     000000.depth               Float32 LE, tightly packed, depthResolution.height × width
     000000.conf                UInt8, same shape                           (optional per frame)
     000000.jpg                 colour, JPEG, ≤ 640 px long edge              (optional per frame)
-    000000.json                FrameMeta — written LAST; its presence means the frame is complete
+    000000.json                FrameMeta, written LAST. Its presence means the frame is complete
     000001.depth … 
   mesh/
     anchors.json               [MeshAnchorMeta], one entry per anchor, in write order
     <UUID>.vertices            Float32 LE, xyz interleaved, vertexCount × 3, anchor-local
     <UUID>.faces               UInt32 LE, faceCount × 3, indices into .vertices
     <UUID>.classes             UInt8, one per FACE, faceCount
-  worldmap.bin                 ARKit world map (NSKeyedArchiver) — device-only, OPTIONAL, never
+  worldmap.bin                 ARKit world map (NSKeyedArchiver). Device-only, OPTIONAL, never
                                written by this package, never committed as a fixture
 ```
 
 Frame base names are the frame index as **at least six decimal digits, zero padded**
 (`000000`, `000123`, `1234567`). Indices are the writer's frame numbers; a gated writer that
 drops frames leaves no gap in the numbering because it only advances the index on acceptance,
-but a reader must not assume contiguity — list the directory.
+but a reader must not assume contiguity. List the directory.
 
 Anchor base names are the anchor's `UUID.uuidString`: upper-case hexadecimal, hyphenated,
 36 characters (`0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9`).
@@ -63,7 +63,7 @@ All multi-byte values are little-endian. There is no header, padding, alignment 
 |---|---|
 | element | `Float32` (IEEE 754 binary32) |
 | shape | `depthResolution.height` rows × `depthResolution.width` columns, row-major |
-| row stride | exactly `width × 4` bytes — **no** `bytesPerRow` padding |
+| row stride | exactly `width × 4` bytes, with **no** `bytesPerRow` padding |
 | file size | `width × height × 4` bytes (256 × 192 → 196 608 bytes) |
 | meaning | distance from the camera plane in metres (not ray length); 0 or NaN where unknown |
 | origin | pixel (0, 0) is top-left in the sensor's landscape orientation; u right, v down |
@@ -122,7 +122,7 @@ UTC, whole seconds). Numbers are JSON numbers: integral floats print without a d
 (`1`, `0`, `100`), others in shortest round-trip form (`0.99999994`, `-1.4551915e-11`). A reader
 must accept any valid JSON number for a float field.
 
-### `capture.json` — `CaptureManifest`
+### `capture.json` (`CaptureManifest`)
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -160,7 +160,7 @@ Canonical example (exact bytes the golden test asserts):
 }
 ```
 
-### `frames/NNNNNN.json` — `FrameMeta`
+### `frames/NNNNNN.json` (`FrameMeta`)
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -224,11 +224,11 @@ Canonical example (exact bytes the golden test asserts; identity rotation, trans
 }
 ```
 
-### `mesh/anchors.json` — `[MeshAnchorMeta]`
+### `mesh/anchors.json` (`[MeshAnchorMeta]`)
 
 A JSON array, one object per anchor, in the order the anchors were written. When no mesh was
-captured the file is still written at finish as the encoder's pretty-printed empty array — the
-exact bytes `[`, newline, newline, `]` (`"[\n\n]"`, 4 bytes, no trailing newline) — and `mesh.ply`
+captured the file is still written at finish as the encoder's pretty-printed empty array, the
+exact bytes `[`, newline, newline, `]` (`"[\n\n]"`, 4 bytes, no trailing newline). `mesh.ply`
 is written with `element vertex 0` / `element face 0`, so a finished folder always has the same
 shape. A reader treats a missing file as `[]` too.
 
@@ -238,7 +238,7 @@ shape. A reader treats a missing file as `[]` too.
 | `transform` | [Float] × 16 | Anchor-to-world, column-major as `cameraTransform`. |
 | `vertexCount` | Int | Vertices in `.vertices`; `≥ 0`. |
 | `faceCount` | Int | Triangles in `.faces` and bytes in `.classes`; `≥ 0`. |
-| `verticesFile` | String | `"<identifier>.vertices"` — a plain file name inside `mesh/`, never a path. Readers reject names containing `/`, `\`, or equal to `.`/`..`. |
+| `verticesFile` | String | `"<identifier>.vertices"`, a plain file name inside `mesh/`, never a path. Readers reject names containing `/`, `\`, or equal to `.`/`..`. |
 | `facesFile` | String | `"<identifier>.faces"`. |
 | `classesFile` | String | `"<identifier>.classes"`. |
 
@@ -250,7 +250,7 @@ UTF-8, `\n` line endings, one trailing newline. Header, exactly:
 ```
 ply
 format ascii 1.0
-comment <free text — writer identification, NOT part of the contract>
+comment <free text for writer identification, NOT part of the contract>
 comment <free text>
 element vertex <N>
 property float x
@@ -270,9 +270,9 @@ followed by `N` vertex lines `x y z r g b` and `F` face lines `3 i j k`.
   concatenated in anchor order; an anchor's face indices are offset by the number of vertices
   written before it. Overlapping anchors therefore produce duplicate geometry; that is expected.
 - Floats are Swift's shortest round-trip decimal (`10.0`, `0.5`, `-2.0933394`, `1e-05`).
-- The colour encodes the vertex's class — the **majority class of the faces touching the
-  vertex, ties to the lowest class value** — through this exact table, so a reader can map
-  colour back to class:
+- The colour encodes the vertex's class, meaning the **majority class of the faces touching the
+  vertex, ties to the lowest class value**. That maps through this exact table, so a reader can
+  turn colour back into class:
 
 | class | value | r g b |
 |---|---|---|
@@ -307,8 +307,8 @@ triangle at y + 2.5:
 
 - One private serial queue does all file I/O. `write(frame)` is non-blocking and returns whether
   the frame was accepted. With `maxPendingFrames` (default 6) frames still queued, a further
-  frame is **dropped** — `write` returns `false` and `droppedFrameCount` increments — rather
-  than buffered. A slow disk costs frames, never memory or latency.
+  frame is **dropped** rather than buffered. `write` returns `false` and `droppedFrameCount`
+  increments. A slow disk costs frames, never memory or latency.
 - Per frame, in order: `.depth`, `.conf` (if present), `.jpg` (if present and enabled), then
   `.json`. Each atomically.
 - `writeMeshSnapshot(anchors)` validates **every** anchor's byte lengths against its counts

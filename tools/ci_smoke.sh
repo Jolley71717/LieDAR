@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci_smoke.sh — can this machine run LieDAR's simulator tests at all?
+# ci_smoke.sh: can this machine run LieDAR's simulator tests at all?
 # Creates and boots a throwaway iPhone simulator and checks the host has a Metal device.
 # The in-simulator Metal probe lives in Tests/LieDARTests/MetalAvailabilityTests.swift and
 # reports XCTSkip("no Metal device") rather than failing; this script is the pre-check.
@@ -32,7 +32,7 @@ SWIFT
 OUT="$(swiftc -O "$PROBE_DIR/probe.swift" -o "$PROBE_DIR/probe" 2>&1 && "$PROBE_DIR/probe" 2>&1 || echo METAL_DEVICE=compile-failed)"
 echo "   $OUT"
 case "$OUT" in
-  *METAL_DEVICE=none*|*compile-failed*) echo "RESULT: BLOCKED simulator boots but the host has no Metal device — GPU-dependent tests will skip; CPU-raycaster tests still valid"; exit 2 ;;
+  *METAL_DEVICE=none*|*compile-failed*) echo "RESULT: BLOCKED simulator boots but the host has no Metal device, so GPU-dependent tests will skip. CPU-raycaster tests still valid"; exit 2 ;;
 esac
 echo "RESULT: PASS simulator boots and host Metal device present ($TYPE)"
 exit 0
