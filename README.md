@@ -38,6 +38,30 @@ and proves two runs are byte-identical; `tools/mutation_check.sh` proves the rea
 when their code is removed. What the source cannot reproduce — sensor noise, drift,
 relocalisation, lighting, reflective failures, RoomPlan — is spelled out in `docs/REALISM.md`.
 
+## The example app (phase 2)
+
+`Example/` is a small capture app built on the package, and the black box the end-to-end tests
+drive. Home list, a Start/Stop screen with a live HUD of frames written, anchors held and seconds
+elapsed, and a detail screen that reads the saved folder back through `CaptureReader`. The
+capture loop in `Example/ExampleApp/CaptureEngine.swift` is the part to copy. It is everything
+an adopting app writes between Start and Stop, and nothing in it knows the source is synthetic.
+
+Open `Example/Example.xcodeproj` and run. The project is committed and takes the package as a
+local path dependency, so there is no generation step and nothing to fetch. Three XCUITest
+journeys drive it on a throwaway simulator:
+
+```
+bash tools/journeys.sh          # RESULT: PASS 3 passed/0 failed/0 skipped (...)
+bash tools/journey_mutation.sh  # RESULT: PASS 1/1 ...
+```
+
+The journeys assert values, not presence: the size the saved row shows must equal the bytes in
+the folder, a capture that yielded nothing must add no row at all, and a degraded run must come
+back with at least 15 % of its faces unlabelled. `tools/journey_mutation.sh` proves the first one
+is load-bearing by deleting the single line that publishes a capture to the list and requiring
+the journey to fail on its named assertion, then restoring the file byte-identical. See
+`docs/EXAMPLE_APP.md`.
+
 ## What it will never do
 
 Make ARKit run on the Simulator; produce ARKit's own types; reproduce sensor noise, drift,
