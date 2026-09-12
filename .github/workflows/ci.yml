@@ -23,8 +23,34 @@ jobs:
           # so the answer is visible in the log rather than hidden behind a red X.
           if [ "$rc" -eq 1 ]; then exit 1; fi
           exit 0
-      - name: Record verdict
-        run: tail -1 smoke.log >> "$GITHUB_STEP_SUMMARY"
+      - name: Metal verdict
+        # Runs even when the smoke step exited non-zero, so the FAIL headline below is reachable.
+        if: always()
+        # The smoke job answers one question. Does this runner have a GPU? Write the answer to
+        # the job log, the run summary and a run annotation, so nobody has to open a raw log to
+        # find out. A BLOCKED verdict still leaves the job green.
+        run: |
+          verdict="$(tail -1 smoke.log 2>/dev/null)"
+          case "$verdict" in
+            "RESULT: PASS"*)    headline="Metal PRESENT on this runner. The in-simulator GPU probe can run." ;;
+            "RESULT: BLOCKED"*) headline="Metal BLOCKED on this runner. There is no GPU. The CPU raycaster and every test that depends on it are unaffected." ;;
+            "RESULT: FAIL"*)    headline="Smoke FAILED. The runner could not create or boot a simulator." ;;
+            *)                  headline="Metal verdict UNKNOWN. tools/ci_smoke.sh printed no RESULT line." ;;
+          esac
+          echo "=============================================================="
+          echo "$headline"
+          echo "${verdict:-(no RESULT line)}"
+          echo "=============================================================="
+          echo "::notice title=simulator + Metal smoke::$headline"
+          {
+            echo "### simulator + Metal smoke"
+            echo
+            echo "$headline"
+            echo
+            echo '```'
+            echo "${verdict:-(no RESULT line)}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
   unit:
     name: swift test (macOS) + xcodebuild test (iOS Simulator)
     runs-on: macos-15
@@ -37,7 +63,56 @@ jobs:
       - name: Is there a package yet?
         id: pkg
         run: |
-          if [ -f Package.swift ] && [ -f tools/test.sh ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "RESULT: BLOCKED no Package.swift/tools/test.sh yet — phase 0 not landed" | tee -a "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f Package.swift ] && [ -f tools/test.sh ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "RESULT: BLOCKED no Package.swift/tools/test.sh yet, phase 0 not landed" | tee -a "$GITHUB_STEP_SUMMARY"; fi
       - name: Test
         if: steps.pkg.outputs.present == 'true'
         run: bash tools/test.sh
+  journeys:
+    name: Example app journeys (XCUITest)
+    runs-on: macos-15
+    timeout-minutes: 45
+    # No `needs`. The journeys drive the CPU raycaster and never touch Metal, so they must run
+    # whatever the smoke job says, including when it cannot create a simulator at all. If they
+    # then fail for that reason, the failure is theirs to report.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.1.app && xcodebuild -version
+      - name: Journeys
+        shell: bash
+        # Example/Example.xcodeproj is committed. There is no xcodegen on the runner and no
+        # generation step here. If this job cannot build from the checkout, the project is wrong.
+        run: bash tools/journeys.sh | tee journeys.log
+      - name: Record verdict
+        if: always()
+        run: tail -1 journeys.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+  fixture-audit:
+    name: fixture audit
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.1.app && xcodebuild -version
+      - name: Audit
+        shell: bash
+        run: bash tools/fixture_audit.sh | tee fixture-audit.log
+      - name: Record verdict
+        if: always()
+        run: tail -1 fixture-audit.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+  mutation:
+    name: journey mutation proof
+    runs-on: macos-15
+    # Runs the journey twice, each on its own freshly booted simulator.
+    timeout-minutes: 60
+    needs: journeys
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.1.app && xcodebuild -version
+      - name: Mutation proof
+        shell: bash
+        run: bash tools/journey_mutation.sh | tee mutation.log
+      - name: Record verdict
+        if: always()
+        run: tail -1 mutation.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
