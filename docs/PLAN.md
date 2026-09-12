@@ -129,6 +129,33 @@ The unit job reported `RESULT: BLOCKED no Package.swift/tools/test.sh yet` and s
 which is the intended behaviour before phase 0. The first run failed in 0 s because `hashFiles`
 is not permitted in a job-level `if`; gating moved to a step.
 
+**Phase 2 merged and CI-proven (2026-09-12 23:30).** Run #34725673637 on `macos-15`/Xcode
+26.1.1, all five jobs green:
+
+| Job | Verdict |
+|---|---|
+| simulator + Metal smoke | Metal PRESENT on the runner |
+| swift test + xcodebuild test | 81 tests, 0 failures, 5 skipped on macOS and on an iPhone 17 Pro Max simulator |
+| Example app journeys | 3 passed, 0 failed |
+| fixture audit | 165 files, nothing recorded, nothing over 2 MB |
+| journey mutation proof | 1/1, restored byte-identical |
+
+The 5 skips are the 4 parity tests, which need `LIEDAR_PARITY_CAPTURE` and correctly skip on a
+clean clone, plus the raycaster timing test, which only runs under `LIEDAR_ASSERT_TIMING=1`.
+
+Two faults reached CI that no local run could have caught, both now fixed. An `XCTAssertEqual`
+comparing two untyped array literals made Xcode 26.1.1 abandon type-checking, while 26.5 on the
+development machine inferred it without complaint, so the package did not build on CI at all.
+Both sides now carry explicit types. And the smoke job read its verdict with `tail -1`, which
+picked up the EXIT trap's "deleted" message instead of the RESULT line above it; the trap now
+writes to stderr, so the script ends on its RESULT line as the house contract requires, and the
+verdict steps search for that line rather than assuming its position.
+
+A third fault was self-inflicted and wasted a run: a plain YAML scalar containing a colon and a
+space, which the parser reads as a mapping key, so the workflow failed in zero seconds with no
+jobs and no log. `tools/ci_lint.sh` now parses every workflow and prints the jobs it finds, which
+catches that class in under a second.
+
 **Phase 0 merged and CI-proven (2026-09-12 18:25).** Run #34710583105 on `macos-15`/Xcode 26.1.1:
 `RESULT: PASS macOS 41 tests/0 failures/4 skipped; simulator 41 tests/0 failures/4 skipped` on an
 iPhone 17 Pro Max simulator (iOS 26.2 runtime on the runner). The 4 skips are the parity tests,
