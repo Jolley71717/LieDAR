@@ -71,7 +71,7 @@ The package builds in **Swift 6 language mode from day one**.
 ### Deterministic depth from a CPU raycaster (RT-9)
 
 Canonical depth, confidence and mesh come from a CPU raycaster over the room's triangles:
-~49k rays × < 200 triangles ≈ 10–20 ms per frame, bit-identical on every machine, no Metal. The
+~49k rays × < 200 triangles ≈ 10–20 ms per frame, bit-identical on every arm64 machine, no Metal. The
 GPU renders **only the on-screen preview**. Golden-value tests therefore do not drift between an
 M4 and a CI runner, and x86_64/Rosetta simulators (where Metal is unavailable) still run every
 test.

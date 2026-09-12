@@ -141,6 +141,11 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
         lock.withLock { chunker.anchors() }.map(configuration.degradation.apply)
     }
 
+    /// Placeholder until phase 3 (interactive preview). It currently renders nothing:
+    /// `SyntheticCaptureView` is an empty marker object with no platform view behind it, so a
+    /// host that puts it on screen gets a blank area where the camera feed would be. Phase 3
+    /// replaces it with a RealityKit `.nonAR` / SceneKit render of the room from the current
+    /// pose, and wires `raycast(screenPoint:)` to that view.
     public func makeCaptureView() -> CaptureViewRepresentable { SyntheticCaptureView() }
 
     /// Phase 3 wires this to the preview; until then there is no screen to hit.
@@ -249,7 +254,8 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
     }
 }
 
-/// The view a `SyntheticCaptureSource` offers. Phase 3 replaces it with a rendered preview.
+/// The view a `SyntheticCaptureSource` offers: an empty marker that renders nothing. Phase 3
+/// (interactive preview) replaces it with a rendered view of the room.
 public final class SyntheticCaptureView: CaptureViewRepresentable {
     public init() {}
 }
