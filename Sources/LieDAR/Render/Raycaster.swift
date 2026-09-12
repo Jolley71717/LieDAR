@@ -8,6 +8,15 @@ import simd
 /// inputs are bit-identical on every arm64 machine, which is what lets a golden test pin the
 /// depth bytes exactly. No Metal, no GPU.
 ///
+/// Rays that land on an edge shared by two triangles can be rejected by both: Moller-Trumbore
+/// tests `u`, `v` and `u + v` against 0 and 1, and the two triangles compute those values
+/// independently, so a ray exactly on the edge can read `u + v = 1.0000003` on one side and
+/// `v = -2.1e-7` on the other. That miss would write a 0 m depth sample into a closed room.
+/// A pixel that misses everything in the strict pass is traced a second time with a
+/// barycentric tolerance of `seamTolerance`; strict hits are never revisited, so the second
+/// pass cannot change a value the goldens pin. The tour frame at 3.6 s, pixel (161, 148),
+/// is the case that found this (`RaycasterTests.testRayOnASharedEdgeStillHits`).
+///
 /// Depth is the distance along the camera's −Z axis (the plane distance the format specifies),
 /// not the ray length: each pixel's ray is `(dx, dy, −1)` in camera space, so the hit
 /// parameter `t` *is* the depth.
@@ -69,6 +78,9 @@ public final class Raycaster: Sendable {
     private let nodeCount: [Int32]
     private let order: [Int32]
     private static let leafSize = 4
+    /// Barycentric slack for the second pass over pixels the strict pass missed. 1e-5 of a
+    /// triangle edge is 4 µm on a 0.4 m wall cell, and two orders above the 3e-7 overshoot seen.
+    private static let seamTolerance: Float = 1e-5
 
     public init(model: RoomModel, confidenceModel: ConfidenceModel = ConfidenceModel()) {
         self.model = model
@@ -180,7 +192,12 @@ public final class Raycaster: Sendable {
                                                     var bestID: Int32 = -1
                                                     if triCount > 0 {
                                                         Self.trace(ox, oy, oz, wx, wy, wz, tri: tri, nb: nb, nf: nf, nc: nc, ord: ord,
-                                                                   stack: stack, bestT: &bestT, bestID: &bestID)
+                                                                   stack: stack, eps: 0, bestT: &bestT, bestID: &bestID)
+                                                        if bestID < 0 {
+                                                            // Shared-edge miss: retry with slack. See the type comment.
+                                                            Self.trace(ox, oy, oz, wx, wy, wz, tri: tri, nb: nb, nf: nf, nc: nc, ord: ord,
+                                                                       stack: stack, eps: Self.seamTolerance, bestT: &bestT, bestID: &bestID)
+                                                        }
                                                     }
                                                     let p = v * width + u
                                                     guard bestID >= 0 else { continue }
@@ -212,12 +229,13 @@ public final class Raycaster: Sendable {
     }
 
     /// Nearest hit along the ray from `(ox, oy, oz)` in direction `(dx, dy, dz)`; `bestT` is
-    /// the parameter (depth), `bestID` the triangle, or −1.
+    /// the parameter (depth), `bestID` the triangle, or −1. `eps` widens the barycentric
+    /// inside test by that much on every side; 0 is the strict test.
     @inline(__always)
     private static func trace(_ ox: Float, _ oy: Float, _ oz: Float, _ dx: Float, _ dy: Float, _ dz: Float,
                               tri: UnsafeBufferPointer<Float>, nb: UnsafeBufferPointer<Float>,
                               nf: UnsafeBufferPointer<Int32>, nc: UnsafeBufferPointer<Int32>, ord: UnsafeBufferPointer<Int32>,
-                              stack: UnsafeMutableBufferPointer<Int32>, bestT: inout Float, bestID: inout Int32) {
+                              stack: UnsafeMutableBufferPointer<Int32>, eps: Float, bestT: inout Float, bestID: inout Int32) {
         let invX = 1 / dx, invY = 1 / dy, invZ = 1 / dz
         var sp = 0
         stack[0] = 0
@@ -256,10 +274,10 @@ public final class Raycaster: Sendable {
                 let invDet = 1 / det
                 let sx = ox - tri[base], sy = oy - tri[base + 1], sz = oz - tri[base + 2]
                 let uu = (sx * px + sy * py + sz * pz) * invDet
-                if uu < 0 || uu > 1 { continue }
+                if uu < -eps || uu > 1 + eps { continue }
                 let qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x
                 let vv = (dx * qx + dy * qy + dz * qz) * invDet
-                if vv < 0 || uu + vv > 1 { continue }
+                if vv < -eps || uu + vv > 1 + eps { continue }
                 let t = (e2x * qx + e2y * qy + e2z * qz) * invDet
                 if t <= 1e-4 { continue }
                 if t < bestT || (t == bestT && id < bestID) {
