@@ -99,7 +99,8 @@ public final class Raycaster: Sendable {
         nodeCount = count
     }
 
-    public var nodeCountForTesting: Int { nodeCount.count }
+    /// Nodes in the BVH; 1 for a model that fits one leaf.
+    public var bvhNodeCount: Int { nodeCount.count }
 
     /// Median split on the longest axis of the centroid bounds; leaves hold ≤ `leafSize`.
     private static func build(range: Range<Int>, order: inout [Int32], centroids: [SIMD3<Float>],

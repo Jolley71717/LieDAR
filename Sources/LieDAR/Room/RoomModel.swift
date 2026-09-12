@@ -202,6 +202,7 @@ struct MeshBuilder {
     mutating func addQuad(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ c: SIMD3<Float>, _ d: SIMD3<Float>,
                           normal: SIMD3<Float>, _ cls: MeshClassification) {
         let u = b - a, v = d - a
+        assert(simd_length(c - (a + u + v)) < 1e-3, "quad is not a parallelogram")
         let nu = max(1, Int((simd_length(u) / cell - 1e-4).rounded(.up)))
         let nv = max(1, Int((simd_length(v) / cell - 1e-4).rounded(.up)))
         let flip = simd_dot(simd_cross(u, v), normal) < 0
@@ -213,7 +214,6 @@ struct MeshBuilder {
                 grid.append(vertex(p))
             }
         }
-        _ = c
         for j in 0..<nv {
             for i in 0..<nu {
                 let p00 = grid[j * (nu + 1) + i], p10 = grid[j * (nu + 1) + i + 1]
