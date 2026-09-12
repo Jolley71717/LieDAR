@@ -78,8 +78,8 @@ public struct CameraPath: Sendable, Equatable {
     /// A tour of `spec` at a person's pace: a still second for tracking to initialise, then as
     /// many `tourLegSeconds` legs as `seconds` allows, each a step to the next corner of a
     /// small loop near the middle of the room while turning to face the next wall (south,
-    /// east, north, west, and round again). Five legs bring the camera back to its start, so
-    /// a loop closure late in an 8-second tour is plausible; a 4-second tour is two legs.
+    /// east, north, west, and round again). Four legs bring the camera back to its start, so
+    /// a loop closure late in an 8.5-second tour is plausible; a 4-second tour is two legs.
     public static func tour(of spec: RoomSpec, seconds: TimeInterval = 8.5, eyeHeight: Float = chestHeight) -> CameraPath {
         let usableWidth = spec.width - (spec.lCut?.cutWidth ?? 0)
         let cx = usableWidth / 2, cz = spec.depth / 2

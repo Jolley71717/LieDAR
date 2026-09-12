@@ -13,7 +13,7 @@ struct FixtureTool {
     static func main() async {
         var seed: UInt64 = 1
         var out: String?
-        var seconds: TimeInterval = 4
+        var seconds: TimeInterval = 3
         var depth = PixelSize(width: 48, height: 36)
         var rate: Double = 30
         var args = CommandLine.arguments.dropFirst().makeIterator()
@@ -46,6 +46,12 @@ struct FixtureTool {
         var options = ScriptedCapture.Options()
         options.notes = "LieDAR synthetic fixture, seed \(seed), \(seconds) s tour, depth \(depth.width)x\(depth.height) at \(rate) Hz"
         let folder = URL(fileURLWithPath: out, isDirectory: true)
+        // Only ever replace a folder that is a capture (or empty); never sweep an arbitrary path.
+        let existing = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        if !existing.isEmpty, !existing.contains("capture.json"), !existing.contains("frames") {
+            FileHandle.standardError.write(Data("refusing to overwrite \(folder.path): it is not a capture folder\n".utf8))
+            exit(2)
+        }
         do {
             try? FileManager.default.removeItem(at: folder)
             let report = try await ScriptedCapture.record(from: source, to: folder, options: options)

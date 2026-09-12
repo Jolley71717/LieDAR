@@ -45,7 +45,9 @@ final class RaycasterTests: XCTestCase {
     }
 
     func testCanonicalDepthHasTheGeometryItShould() {
-        let frame = Raycaster(model: room).render(cameraToWorld: Self.canonicalPose, intrinsics: .iPhonePro)
+        let raycaster = Raycaster(model: room)
+        XCTAssertEqual(raycaster.bvhNodeCount, 2 * 256 - 1, "842 triangles at ≤ 4 per leaf: 256 leaves, a full binary tree")
+        let frame = raycaster.render(cameraToWorld: Self.canonicalPose, intrinsics: .iPhonePro)
         XCTAssertEqual(frame.hitCount, frame.pixelCount, "a closed room leaves no misses")
         // The pixel nearest the optical axis looks straight at the wall 3 m away.
         let centre = frame.depthAt(x: 128, y: 96)
