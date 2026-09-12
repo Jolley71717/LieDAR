@@ -39,13 +39,15 @@ public final class Raycaster: Sendable {
 
     /// How confidence falls off with range and grazing angle. Real LiDAR confidence is a
     /// sensor-side estimate the API does not document; this is a plausible stand-in, no more.
+    /// The defaults live on `init` alone (3 m / 5 m, cos 0.5 / 0.2); `tools/mutation_check.sh`
+    /// case D breaks `mediumCosine` there to prove the confidence golden test can fail.
     public struct ConfidenceModel: Sendable, Equatable {
         /// Hits closer than this with |cos θ| ≥ `highCosine` are high.
-        public var highRange: Float = 3.0
+        public var highRange: Float
         /// Hits closer than this with |cos θ| ≥ `mediumCosine` are medium; anything else is low.
-        public var mediumRange: Float = 5.0
-        public var highCosine: Float = 0.5
-        public var mediumCosine: Float = 0.2
+        public var mediumRange: Float
+        public var highCosine: Float
+        public var mediumCosine: Float
 
         public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {
             self.highRange = highRange
