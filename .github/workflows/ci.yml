@@ -24,6 +24,8 @@ jobs:
           if [ "$rc" -eq 1 ]; then exit 1; fi
           exit 0
       - name: Metal verdict
+        # Runs even when the smoke step exited non-zero, so the FAIL headline below is reachable.
+        if: always()
         # The smoke job answers one question. Does this runner have a GPU? Write the answer to
         # the job log, the run summary and a run annotation, so nobody has to open a raw log to
         # find out. A BLOCKED verdict still leaves the job green.
@@ -69,7 +71,9 @@ jobs:
     name: Example app journeys (XCUITest)
     runs-on: macos-15
     timeout-minutes: 45
-    needs: smoke
+    # No `needs`. The journeys drive the CPU raycaster and never touch Metal, so they must run
+    # whatever the smoke job says, including when it cannot create a simulator at all. If they
+    # then fail for that reason, the failure is theirs to report.
     steps:
       - uses: actions/checkout@v4
       - name: Pin Xcode
