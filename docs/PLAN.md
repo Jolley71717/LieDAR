@@ -129,6 +129,12 @@ The unit job reported `RESULT: BLOCKED no Package.swift/tools/test.sh yet` and s
 which is the intended behaviour before phase 0. The first run failed in 0 s because `hashFiles`
 is not permitted in a job-level `if`; gating moved to a step.
 
+**Phase 0 merged and CI-proven (2026-09-12 18:25).** Run #34710583105 on `macos-15`/Xcode 26.1.1:
+`RESULT: PASS macOS 41 tests/0 failures/4 skipped; simulator 41 tests/0 failures/4 skipped` on an
+iPhone 17 Pro Max simulator (iOS 26.2 runtime on the runner). The 4 skips are the parity tests,
+which need `LIEDAR_PARITY_CAPTURE` and correctly skip on a clean clone. See the line above the
+layout section for the Metal-in-simulator result on the runner.
+
 ## Repository layout (RT-8)
 
 ```
