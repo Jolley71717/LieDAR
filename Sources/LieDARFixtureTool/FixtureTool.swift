@@ -14,7 +14,7 @@ struct FixtureTool {
         var seed: UInt64 = 1
         var out: String?
         var seconds: TimeInterval = 4
-        var depth = PixelSize(width: 64, height: 48)
+        var depth = PixelSize(width: 48, height: 36)
         var rate: Double = 30
         var args = CommandLine.arguments.dropFirst().makeIterator()
         while let arg = args.next() {
