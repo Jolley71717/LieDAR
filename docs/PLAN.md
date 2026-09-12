@@ -184,8 +184,8 @@ Expect 8–15 min per run; free on a public repo. Nothing to cache.
 
 | # | Deliverable | Accepted when |
 |---|---|---|
-| 0 | Format spec + `CaptureRecorder` + Sendable payloads, in the package | Meshwise's existing unit tests pass against the package's writer byte-for-byte on a fixture |
-| 1 | `CaptureSource` injected into Meshwise's `RawCaptureSession`; `ARKitCaptureSource`; `ReplayCaptureSource`; Start enabled by `isAvailable` | Meshwise device lane green (Card 2) AND a replayed capture on the simulator reaches the list with no badge, via the real `handle`/`stop` |
+| 0 | Format spec + `CaptureRecorder` + Sendable payloads, in the package | `docs/CAPTURE_FORMAT.md` names every file, field and byte layout; the package's reader parses a real consumer capture (manifest, frame meta, anchor binaries, PLY header) with counts agreeing with the disk; the writer matches the spec by construction (same layout, encoder settings and PLY builder as the consumer's) and by golden tests that pin exact bytes, JSON and PLY text; `swift build -warnings-as-errors` clean and `tools/test.sh` PASS on macOS and a throwaway simulator |
+| 1 | `CaptureSource` injected into Meshwise's `RawCaptureSession`; `ARKitCaptureSource`; `ReplayCaptureSource`; Start enabled by `isAvailable` | Meshwise's existing unit tests pass against the package's writer byte-for-byte on a fixture; Meshwise device lane green (Card 2) AND a replayed capture on the simulator reaches the list with no badge, via the real `handle`/`stop` |
 | 2 | Parametric `RoomModel`, CPU `Raycaster`, `AnchorChunker`, `DegradationModel`, scripted `VirtualCamera`, generated fixtures + audit | Example journeys 1–3 green on a throwaway simulator; goldens exact; mutation proofs fail correctly |
 | 3 | `SyntheticCaptureSource` wired into Meshwise behind a Debug launch argument; preview view; `SimulatorControls` | A person can walk a virtual basement in the Meshwise simulator build and extract a plan |
 | 4 | CI on GitHub; README/REALISM/LICENSE; first tag | Green on `macos-15` from a clean clone; SPI builds |

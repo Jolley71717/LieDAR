@@ -4,33 +4,24 @@ import XCTest
 
 /// Reads — never copies — a capture written by the format's first consumer and checks this
 /// package's reader agrees with it. The folder is private and lives outside the repository;
-/// point `LIEDAR_PARITY_CAPTURE` at any capture folder, or the default location is used.
-/// Skips, with a clear reason, when no such folder is present (CI has none).
+/// point `LIEDAR_PARITY_CAPTURE` at any capture folder. Skips, with a clear reason, when the
+/// variable is unset or the folder is missing (CI has none).
 final class LayoutParityTests: XCTestCase {
 
+    /// `LIEDAR_PARITY_CAPTURE` from the environment, and nothing else: no default path, so the
+    /// repository bakes in nobody's directory layout. `tools/test.sh` sets it (and forwards it
+    /// into the simulator as `TEST_RUNNER_LIEDAR_PARITY_CAPTURE`) only when the folder exists.
     private static var captureFolder: URL? {
-        let environment = ProcessInfo.processInfo.environment
-        if let override = environment["LIEDAR_PARITY_CAPTURE"], !override.isEmpty {
-            return URL(fileURLWithPath: override, isDirectory: true)
-        }
-        // The user's real home: the simulator exports the host's as SIMULATOR_HOST_HOME (HOME
-        // there is the sandbox); on macOS the password database answers.
-        let home: String
-        if let hostHome = environment["SIMULATOR_HOST_HOME"], !hostHome.isEmpty {
-            home = hostHome
-        } else if let pw = getpwuid(getuid())?.pointee.pw_dir.map({ String(cString: $0) }) {
-            home = pw
-        } else {
-            return nil
-        }
-        return URL(fileURLWithPath: home, isDirectory: true)
-            .appendingPathComponent("git/meshwise/samples/full", isDirectory: true)
+        guard let path = ProcessInfo.processInfo.environment["LIEDAR_PARITY_CAPTURE"], !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
 
     private func openCapture() throws -> CaptureReader {
-        guard let folder = Self.captureFolder,
-              FileManager.default.fileExists(atPath: folder.appendingPathComponent(CaptureFormat.manifestFile).path) else {
-            throw XCTSkip("no consumer capture folder to compare against (set LIEDAR_PARITY_CAPTURE)")
+        guard let folder = Self.captureFolder else {
+            throw XCTSkip("LIEDAR_PARITY_CAPTURE is not set; no consumer capture folder to compare against")
+        }
+        guard FileManager.default.fileExists(atPath: folder.appendingPathComponent(CaptureFormat.manifestFile).path) else {
+            throw XCTSkip("LIEDAR_PARITY_CAPTURE=\(folder.path) has no \(CaptureFormat.manifestFile)")
         }
         return CaptureReader(folderURL: folder)
     }
