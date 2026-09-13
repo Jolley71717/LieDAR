@@ -52,7 +52,7 @@ public struct CaptureReader: Sendable {
     /// `CaptureFormat.readableFormatVersions`.
     public func manifest() throws -> CaptureManifest {
         let url = folderURL.appendingPathComponent(CaptureFormat.manifestFile)
-        guard let data = FileManager.default.contents(atPath: url.path) else {
+        guard let data = regularFileData(url) else {
             throw ReadError.missingManifest(url.path)
         }
         let manifest = try CaptureFormat.makeJSONDecoder().decode(CaptureManifest.self, from: data)
@@ -100,7 +100,7 @@ public struct CaptureReader: Sendable {
     /// Decodes `frames/NNNNNN.json`. Throws `frameIncomplete` when the file is absent.
     public func frameMeta(_ index: Int) throws -> FrameMeta {
         let url = frameURL(index, extension: CaptureFormat.frameMetaExtension)
-        guard let data = FileManager.default.contents(atPath: url.path) else { throw ReadError.frameIncomplete(index) }
+        guard let data = regularFileData(url) else { throw ReadError.frameIncomplete(index) }
         do {
             let meta = try CaptureFormat.makeJSONDecoder().decode(FrameMeta.self, from: data)
             guard meta.cameraTransform.count == 16 else { throw ReadError.badFrameMeta(index, "cameraTransform has \(meta.cameraTransform.count) values, not 16") }
@@ -146,7 +146,7 @@ public struct CaptureReader: Sendable {
 
     /// The raw JPEG bytes of a frame's colour image, or `nil` when it has none.
     public func colorJPEG(_ index: Int) -> Data? {
-        FileManager.default.contents(atPath: frameURL(index, extension: CaptureFormat.colorExtension).path)
+        regularFileData(frameURL(index, extension: CaptureFormat.colorExtension))
     }
 
     // MARK: Mesh
@@ -154,7 +154,7 @@ public struct CaptureReader: Sendable {
     /// Decodes `mesh/anchors.json`; `[]` when the file is absent (no mesh was captured).
     public func anchors() throws -> [MeshAnchorMeta] {
         let url = meshURL.appendingPathComponent(CaptureFormat.anchorsFile)
-        guard let data = FileManager.default.contents(atPath: url.path) else { return [] }
+        guard let data = regularFileData(url) else { return [] }
         do {
             return try CaptureFormat.makeJSONDecoder().decode([MeshAnchorMeta].self, from: data)
         } catch {
@@ -208,33 +208,60 @@ public struct CaptureReader: Sendable {
         return data.count == bytes ? data : data.prefix(bytes)
     }
 
-    /// `url` with symlinks resolved, having checked that it stays inside the capture folder and
-    /// points at a regular file.
+    /// Checks that `url` is a regular file sitting inside the capture folder, and returns it.
     ///
     /// The name check in `anchor(_:)` reads a string, and a symlink's own name is a perfectly
     /// legal plain name, so it passed; `FileManager.contents(atPath:)` then followed the link and
     /// read bytes from outside the folder. Zip archives and AirDropped folders both carry
     /// symlinks, so a capture that arrives from anywhere can hold one.
     ///
-    /// The mechanism is `resolvingSymlinksInPath()` on both the target and the capture folder,
-    /// then a path-prefix comparison at a component boundary, then `lstat` through
-    /// `attributesOfItem` on the resolved path to require a regular file. What it still misses:
-    /// the check and the read are two calls, so a link swapped between them is followed (a
-    /// time-of-check to time-of-use race); a hard link to a file outside the folder has no path
-    /// to resolve and reads as an ordinary file; and a folder placed on a mount point whose
-    /// device changes underneath is not noticed. Reading a capture written by someone else with
-    /// write access to the same directory is not made safe by this.
+    /// **A symlink is refused even when it points at a file inside the folder.** Nothing that
+    /// writes a LieDAR capture emits one, so allowing it buys no compatibility, and "every file
+    /// in a capture is a regular file" is an invariant that can be stated and tested in one line,
+    /// where "resolves to somewhere under the folder" cannot. It is also the safer of the two: a
+    /// link can be re-pointed after it has been checked, and a regular file cannot.
+    ///
+    /// The mechanism is `attributesOfItem`, which reports on the link itself rather than its
+    /// target (probed, not assumed), so anything that is not a regular file is refused before it
+    /// is opened. The resolved-parent comparison after it is redundant for a plain name that has
+    /// already passed the type check, and is kept so that relaxing the type check later cannot
+    /// silently reopen the hole. Both sides are resolved so that `/var` against `/private/var`
+    /// does not read as an escape.
+    ///
+    /// What it still misses. The check and the read are two calls on a path, so an attacker with
+    /// write access to the folder could swap a regular file for a link in between and be followed
+    /// (time-of-check to time-of-use). That gap is left open deliberately: closing it means
+    /// opening the file with `O_NOFOLLOW` and reading through the descriptor rather than through
+    /// `FileManager`, and anyone who can win that race can already choose what the reader parses
+    /// by writing the file's contents. A hard link to a file outside the folder has no path to
+    /// resolve and reads as an ordinary file. Reading a capture out of a directory that someone
+    /// else can write to is not made safe by any of this.
     private func regularFileInsideCapture(_ url: URL) throws -> URL {
         let name = url.lastPathComponent
-        let resolved = url.resolvingSymlinksInPath()
-        let root = folderURL.resolvingSymlinksInPath().standardizedFileURL.path
-        let path = resolved.standardizedFileURL.path
-        let boundary = root.hasSuffix("/") ? root : root + "/"
-        guard path.hasPrefix(boundary) else { throw ReadError.unsafeFileName(name) }
-        guard let type = try? FileManager.default.attributesOfItem(atPath: path)[.type] as? FileAttributeType else {
-            throw ReadError.missingFile(name)
-        }
+        guard let type = fileType(url) else { throw ReadError.missingFile(name) }
         guard type == .typeRegular else { throw ReadError.unsafeFileName(name) }
-        return resolved
+        let root = folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
+        let boundary = root.hasSuffix("/") ? root : root + "/"
+        guard resolved.hasPrefix(boundary) else { throw ReadError.unsafeFileName(name) }
+        return url
+    }
+
+    /// The type of the item at `url` without following a link, or `nil` when nothing is there.
+    private func fileType(_ url: URL) -> FileAttributeType? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType
+    }
+
+    /// Contents of `url` only when it is a regular file inside the capture folder; `nil` otherwise.
+    ///
+    /// The reads that do not go through `readExact` need the same guard. Their *names* are safe,
+    /// because `manifest`, `frameMeta` and `colorJPEG` build the path from a constant or a frame
+    /// index rather than from anything in the file. The *item at that name* is not: a zip can
+    /// carry `frames/000000.jpg` as a symlink just as easily as it can carry
+    /// `mesh/<uuid>.vertices` as one, and `colorJPEG` hands its bytes straight back to the caller.
+    private func regularFileData(_ url: URL) -> Data? {
+        guard fileType(url) == .typeRegular else { return nil }
+        guard (try? regularFileInsideCapture(url)) != nil else { return nil }
+        return FileManager.default.contents(atPath: url.path)
     }
 }
