@@ -148,6 +148,24 @@ public struct RoomSpec: Sendable, Equatable {
         bulkhead: Bulkhead(axis: .x, offset: 1.0, width: 0.6, drop: 0.35),
         furniture: [.table(x: 2.8, z: 2.6)])
 
+    /// Gap kept between an opening and each end of its wall, so no opening runs into a corner.
+    static let openingMargin: Float = 0.3
+    /// Width of the door `random(seed:)` places.
+    static let randomDoorWidth: Float = 0.9
+    /// Width of the windows `random(seed:)` places, and the widest opening it places at all.
+    static let randomWindowWidth: Float = 1.2
+    /// Shortest wall `random(seed:)` will put an opening in: the widest opening it places, plus a
+    /// margin at each end.
+    ///
+    /// This one number is what went wrong. The wall filter admitted 1.6 m while the window's
+    /// offset was drawn from `0.3...(length - 1.5)`, so a wall between 1.6 and 1.8 m gave an
+    /// inverted range and the generator trapped on roughly one seed in fifty (36, 254, 273, 280,
+    /// 402, 423, 447 among the first 500). Only the L-cut's short inner faces are ever that
+    /// short, which is why a sweep of seeds 1 to 12 never saw it. Deriving the threshold from
+    /// the opening widths, rather than clamping the range at the draw, keeps the filter and the
+    /// draw from drifting apart again.
+    static let minimumWallLengthForAnOpening = randomWindowWidth + 2 * openingMargin
+
     /// A seed-deterministic room: size, L-shape, one door, up to two windows, a bulkhead and
     /// up to three pieces of furniture are all drawn from `SeededRandom(seed:)`.
     public static func random(seed: UInt64) -> RoomSpec {
@@ -164,20 +182,26 @@ public struct RoomSpec: Sendable, Equatable {
         var spec = RoomSpec(width: width, depth: depth, ceilingHeight: height, lCut: lCut)
         let walls = RoomModel.wallSegments(of: spec)
 
-        // One door in a wall long enough for it, then 0–2 windows in other walls.
+        // One door in a wall long enough for it, then up to two windows in other walls. Every candidate
+        // can carry the widest opening, so both draws below have a valid range on every wall in
+        // the pool.
+        let margin = Self.openingMargin
         var openings: [WallOpening] = []
-        var candidates = walls.indices.filter { walls[$0].length >= 1.6 }
+        var candidates = walls.indices.filter { walls[$0].length >= Self.minimumWallLengthForAnOpening }
+        func offset(alongWall wall: Int, openingWidth: Float) -> Float {
+            rng.nextFloat(in: margin...(walls[wall].length - openingWidth - margin)).rounded(toPlaces: 2)
+        }
         if !candidates.isEmpty {
             let wall = candidates.remove(at: rng.nextInt(below: candidates.count))
-            let offset = rng.nextFloat(in: 0.3...(walls[wall].length - 1.2)).rounded(toPlaces: 2)
-            openings.append(.door(wall: wall, offset: offset, head: min(2.05, height - 0.1)))
+            openings.append(.door(wall: wall, offset: offset(alongWall: wall, openingWidth: Self.randomDoorWidth),
+                                  width: Self.randomDoorWidth, head: min(2.05, height - 0.1)))
         }
         let windows = rng.nextInt(below: 3)
         for _ in 0..<windows where !candidates.isEmpty {
             let wall = candidates.remove(at: rng.nextInt(below: candidates.count))
-            let offset = rng.nextFloat(in: 0.3...(walls[wall].length - 1.5)).rounded(toPlaces: 2)
             let sill = min(1.2, height - 1.0)
-            openings.append(.window(wall: wall, offset: offset, sill: sill, head: min(sill + 0.8, height - 0.15)))
+            openings.append(.window(wall: wall, offset: offset(alongWall: wall, openingWidth: Self.randomWindowWidth),
+                                    width: Self.randomWindowWidth, sill: sill, head: min(sill + 0.8, height - 0.15)))
         }
         spec.openings = openings
 
