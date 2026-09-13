@@ -11,8 +11,11 @@ let package = Package(
     ],
     products: [
         .library(name: "LieDAR", targets: ["LieDAR"]),
-        .library(name: "LieDARARKit", targets: ["LieDARARKit"]),
-        .library(name: "LieDARUI", targets: ["LieDARUI"]),
+        // LieDARARKit and LieDARUI are deliberately not products yet. Both targets hold a
+        // placeholder that re-exports LieDAR and nothing else, so a consumer who depended on
+        // either one expecting an ARKit capture source or a preview view would get a re-export
+        // and no warning. The targets stay, so they keep building as they are written; the
+        // products come back with the code. `tools/products_check.sh` holds the rule.
         // `tools/make_fixture.sh` runs this to write Fixtures/synthetic-<seed>/.
         .executable(name: "liedar-fixture", targets: ["LieDARFixtureTool"]),
     ],
