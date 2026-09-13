@@ -87,6 +87,23 @@ jobs:
         if: always()
         run: |
           grep -E "^RESULT: " journeys.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+  docs:
+    name: documentation examples compile
+    runs-on: macos-15
+    timeout-minutes: 20
+    # No `needs`. An example that stopped compiling is worth knowing about even when
+    # something else is broken.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.1.app && xcodebuild -version
+      - name: Compile the examples
+        shell: bash
+        run: bash tools/docs_check.sh | tee docs-check.log
+      - name: Record verdict
+        if: always()
+        run: |
+          grep -E "^RESULT: " docs-check.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   fixture-audit:
     name: fixture audit
     runs-on: macos-15
