@@ -12,8 +12,12 @@ public struct CaptureReader: Sendable {
         case shortFile(String, expected: Int, got: Int)
         case badFrameMeta(Int, String)
         case badAnchors(String)
-        /// A file name in `anchors.json` is not a plain name inside `mesh/`.
+        /// A file named in `anchors.json` does not resolve to a regular file inside `mesh/`:
+        /// the name is not a plain name, or it resolves through a symlink to somewhere else, or
+        /// what is there is a directory rather than a file.
         case unsafeFileName(String)
+        /// A count in `anchors.json` is negative, or large enough that the byte count it implies
+        /// overflows.
         case badCount(String)
     }
 
@@ -101,6 +105,18 @@ public struct CaptureReader: Sendable {
             let meta = try CaptureFormat.makeJSONDecoder().decode(FrameMeta.self, from: data)
             guard meta.cameraTransform.count == 16 else { throw ReadError.badFrameMeta(index, "cameraTransform has \(meta.cameraTransform.count) values, not 16") }
             guard meta.intrinsics.count == 9 else { throw ReadError.badFrameMeta(index, "intrinsics has \(meta.intrinsics.count) values, not 9") }
+            // A capture folder is untrusted input, and every reader of `depthResolution`
+            // multiplies it. A width of −4 made the byte count −64, slipped past the
+            // `data.count >= bytes` check and trapped in `Data.prefix`; a width of 2^62 trapped
+            // the multiply itself. Both are rejected here, once, for every caller.
+            let size = meta.depthResolution
+            guard size.width > 0, size.height > 0 else {
+                throw ReadError.badFrameMeta(index, "depthResolution is \(size.width) × \(size.height), which is not a positive size")
+            }
+            guard size.width.multipliedReportingOverflow(by: size.height).overflow == false,
+                  (size.width * size.height).multipliedReportingOverflow(by: 4).overflow == false else {
+                throw ReadError.badFrameMeta(index, "depthResolution \(size.width) × \(size.height) needs more bytes than can be counted")
+            }
             return meta
         } catch let error as ReadError {
             throw error
@@ -154,24 +170,71 @@ public struct CaptureReader: Sendable {
             }
         }
         guard meta.vertexCount >= 0, meta.faceCount >= 0 else { throw ReadError.badCount(meta.identifier) }
+        // Both counts come from the file and both are multiplied. Unchecked, `Int.max` vertices
+        // trapped the multiply before any of the length checks below could run. A count that is
+        // merely absurd does not overflow and stays a plain `shortFile`.
+        let vertexBytes = meta.vertexCount.multipliedReportingOverflow(by: MeshAnchorPayload.bytesPerVertex)
+        let faceBytes = meta.faceCount.multipliedReportingOverflow(by: MeshAnchorPayload.bytesPerFace)
+        guard !vertexBytes.overflow, !faceBytes.overflow else { throw ReadError.badCount(meta.identifier) }
         guard let transform = simd_float4x4(columnMajorArray: meta.transform) else {
             throw ReadError.badAnchors("anchor \(meta.identifier) transform has \(meta.transform.count) values, not 16")
         }
-        let vertices = try readExact(meshURL.appendingPathComponent(meta.verticesFile),
-                                     bytes: meta.vertexCount * MeshAnchorPayload.bytesPerVertex)
-        let faces = try readExact(meshURL.appendingPathComponent(meta.facesFile),
-                                  bytes: meta.faceCount * MeshAnchorPayload.bytesPerFace)
+        // The identifier is the anchor's identity, and a reader that quietly minted a fresh UUID
+        // for one it could not parse made two reads of the same folder disagree, which loses
+        // track of an anchor in anything that keys on it.
+        guard let id = UUID(uuidString: meta.identifier) else {
+            throw ReadError.badAnchors("anchor identifier \"\(meta.identifier)\" is not a UUID")
+        }
+        let vertices = try readExact(meshURL.appendingPathComponent(meta.verticesFile), bytes: vertexBytes.partialValue)
+        let faces = try readExact(meshURL.appendingPathComponent(meta.facesFile), bytes: faceBytes.partialValue)
         let classes = try readExact(meshURL.appendingPathComponent(meta.classesFile), bytes: meta.faceCount)
-        return MeshAnchorPayload(id: UUID(uuidString: meta.identifier) ?? UUID(), transform: transform,
+        return MeshAnchorPayload(id: id, transform: transform,
                                  vertices: vertices, faces: faces, classes: classes,
                                  vertexCount: meta.vertexCount, faceCount: meta.faceCount)
     }
 
     // MARK: Helpers
 
+    /// Reads exactly `bytes` from `url`, which must resolve to a regular file inside the capture
+    /// folder.
     private func readExact(_ url: URL, bytes: Int) throws -> Data {
-        guard let data = FileManager.default.contents(atPath: url.path) else { throw ReadError.missingFile(url.lastPathComponent) }
-        guard data.count >= bytes else { throw ReadError.shortFile(url.lastPathComponent, expected: bytes, got: data.count) }
+        // `bytes` is derived from a count in the file. Every caller checks it, and this is the
+        // backstop: a negative length passes `data.count >= bytes` and then traps in `prefix`.
+        let name = url.lastPathComponent
+        guard bytes >= 0 else { throw ReadError.badCount(name) }
+        let resolved = try regularFileInsideCapture(url)
+        guard let data = FileManager.default.contents(atPath: resolved.path) else { throw ReadError.missingFile(name) }
+        guard data.count >= bytes else { throw ReadError.shortFile(name, expected: bytes, got: data.count) }
         return data.count == bytes ? data : data.prefix(bytes)
+    }
+
+    /// `url` with symlinks resolved, having checked that it stays inside the capture folder and
+    /// points at a regular file.
+    ///
+    /// The name check in `anchor(_:)` reads a string, and a symlink's own name is a perfectly
+    /// legal plain name, so it passed; `FileManager.contents(atPath:)` then followed the link and
+    /// read bytes from outside the folder. Zip archives and AirDropped folders both carry
+    /// symlinks, so a capture that arrives from anywhere can hold one.
+    ///
+    /// The mechanism is `resolvingSymlinksInPath()` on both the target and the capture folder,
+    /// then a path-prefix comparison at a component boundary, then `lstat` through
+    /// `attributesOfItem` on the resolved path to require a regular file. What it still misses:
+    /// the check and the read are two calls, so a link swapped between them is followed (a
+    /// time-of-check to time-of-use race); a hard link to a file outside the folder has no path
+    /// to resolve and reads as an ordinary file; and a folder placed on a mount point whose
+    /// device changes underneath is not noticed. Reading a capture written by someone else with
+    /// write access to the same directory is not made safe by this.
+    private func regularFileInsideCapture(_ url: URL) throws -> URL {
+        let name = url.lastPathComponent
+        let resolved = url.resolvingSymlinksInPath()
+        let root = folderURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let path = resolved.standardizedFileURL.path
+        let boundary = root.hasSuffix("/") ? root : root + "/"
+        guard path.hasPrefix(boundary) else { throw ReadError.unsafeFileName(name) }
+        guard let type = try? FileManager.default.attributesOfItem(atPath: path)[.type] as? FileAttributeType else {
+            throw ReadError.missingFile(name)
+        }
+        guard type == .typeRegular else { throw ReadError.unsafeFileName(name) }
+        return resolved
     }
 }
