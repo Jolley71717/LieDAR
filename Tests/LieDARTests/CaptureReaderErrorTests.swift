@@ -135,8 +135,10 @@ final class CaptureReaderErrorTests: XCTestCase {
         XCTAssertEqual(error, .unsafeFileName(name), "a symlink out of mesh/ must not be read")
     }
 
-    /// A symlink that stays inside the folder is a legal way to package a capture, so it reads.
-    func testASymlinkPointingInsideTheFolderIsRead() throws {
+    /// A symlink is refused even when its target is inside the folder. Nothing that writes a
+    /// capture emits one, so allowing it would buy no compatibility, and a link can be re-pointed
+    /// after it has been checked where a regular file cannot.
+    func testASymlinkPointingInsideTheFolderIsAlsoRefused() throws {
         let m = meta(vertexCount: 1, faceCount: 1)
         try writeAnchorBinaries(m)
         let real = folder.appendingPathComponent("mesh/real.bin")
@@ -144,8 +146,76 @@ final class CaptureReaderErrorTests: XCTestCase {
         try FileManager.default.removeItem(at: folder.appendingPathComponent("mesh/\(m.verticesFile)"))
         try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("mesh/\(m.verticesFile)").path,
                                                   withDestinationPath: real.path)
+        XCTAssertEqual(readError { _ = try reader.anchor(m) }, .unsafeFileName(m.verticesFile))
+    }
+
+    /// The ordinary case, so the guard cannot pass by refusing everything.
+    func testAPlainAnchorStillReadsByteForByte() throws {
+        let m = meta(vertexCount: 1, faceCount: 1)
+        let bytes = Data([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        try bytes.write(to: folder.appendingPathComponent("mesh/\(m.verticesFile)"))
+        try Data(count: MeshAnchorPayload.bytesPerFace).write(to: folder.appendingPathComponent("mesh/\(m.facesFile)"))
+        try Data(count: 1).write(to: folder.appendingPathComponent("mesh/\(m.classesFile)"))
         let payload = try reader.anchor(m)
-        XCTAssertEqual(payload.vertices, Data(repeating: 0xCD, count: MeshAnchorPayload.bytesPerVertex))
+        XCTAssertEqual(payload.vertices, bytes)
+        XCTAssertEqual(payload.vertexCount, 1)
+        XCTAssertEqual(payload.id.uuidString, m.identifier)
+    }
+
+    // MARK: Reads that do not go through an anchor name
+    //
+    // These paths are built from a constant or a frame index, so their names can never be
+    // attacker-controlled. The item at the name still can: a zip carries a symlink at
+    // frames/000000.jpg as easily as at mesh/<uuid>.vertices, and colorJPEG hands the bytes it
+    // reads straight back to the caller.
+
+    func testASymlinkedColourImageIsNotHandedBack() throws {
+        let outside = try makeScratchDirectory().appendingPathComponent("secret.bin")
+        try Data("OUTSIDE-SECRET".utf8).write(to: outside)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("frames/000000.jpg").path,
+                                                  withDestinationPath: outside.path)
+        XCTAssertNil(reader.colorJPEG(0), "a symlinked colour image reads as absent, not as its target's bytes")
+    }
+
+    func testASymlinkedFrameMetaIsNotDecoded() throws {
+        let outside = try makeScratchDirectory().appendingPathComponent("outside.json")
+        try CaptureFormat.makeJSONEncoder().encode(frameMeta()).write(to: outside)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("frames/000000.json").path,
+                                                  withDestinationPath: outside.path)
+        XCTAssertEqual(readError { _ = try reader.frameMeta(0) }, .frameIncomplete(0))
+    }
+
+    func testASymlinkedManifestIsNotDecoded() throws {
+        // A manifest that would decode perfectly well, so the only thing stopping it is the link.
+        let outside = try makeScratchDirectory().appendingPathComponent("outside.json")
+        try CaptureFormat.makeJSONEncoder()
+            .encode(CaptureManifest(deviceModel: "elsewhere", iosVersion: "0",
+                                    startedAt: Date(timeIntervalSince1970: 0), endedAt: Date(timeIntervalSince1970: 1),
+                                    frameCount: 1, meshAnchorCount: 1, totalVertices: 3, totalFaces: 1))
+            .write(to: outside)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("capture.json").path,
+                                                  withDestinationPath: outside.path)
+        guard case .missingManifest? = readError({ _ = try reader.manifest() }) else {
+            return XCTFail("a symlinked manifest must not be decoded")
+        }
+    }
+
+    func testASymlinkedAnchorsFileIsNotDecoded() throws {
+        // One real anchor outside, so a reader that follows the link comes back with an entry.
+        let outside = try makeScratchDirectory().appendingPathComponent("outside.json")
+        try CaptureFormat.makeJSONEncoder().encode([meta()]).write(to: outside)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("mesh/anchors.json").path,
+                                                  withDestinationPath: outside.path)
+        XCTAssertEqual(try reader.anchors(), [], "a symlinked anchors.json reads as absent, not as its target's entries")
+    }
+
+    func testASymlinkedDepthFileIsRefused() throws {
+        try writeFrameMeta(frameMeta())
+        let outside = try makeScratchDirectory().appendingPathComponent("outside.bin")
+        try Data(count: 48).write(to: outside)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("frames/000000.depth").path,
+                                                  withDestinationPath: outside.path)
+        XCTAssertEqual(readError { _ = try reader.depth(0) }, .unsafeFileName("000000.depth"))
     }
 
     func testADirectoryWhereAnAnchorFileShouldBeThrowsUnsafeFileName() throws {

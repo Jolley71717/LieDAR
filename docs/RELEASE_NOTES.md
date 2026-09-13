@@ -30,8 +30,13 @@ nothing else has to change.
   are merely absurd still report `shortFile` with the expected and actual byte counts.
 - `CaptureReader.anchor(_:)` throws `badAnchors` for an identifier that is not a UUID. It used to
   mint a fresh `UUID()`, so two reads of one folder disagreed about an anchor's identity.
-- Anchor files must now resolve to a regular file inside `mesh/`. A directory or a symlink out of
-  the folder throws `unsafeFileName`.
+- Every file a capture is read from must be a regular file inside the capture folder. A symlink or
+  a directory throws `unsafeFileName` for an anchor file, and reads as absent for the manifest,
+  a frame's JSON, `anchors.json` and a colour image. A symlink is refused even when its target is
+  inside the folder: nothing that writes a capture emits one, and a link can be re-pointed after it
+  has been checked. `colorJPEG(_:)` was the sharpest of these, because it handed the bytes it read
+  straight back to the caller, so a symlink planted in a zip leaked an arbitrary readable file
+  into whatever displayed or re-exported the image.
 
 ### Tests and tooling
 
