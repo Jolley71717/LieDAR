@@ -8,6 +8,12 @@
 # Prints exactly one final RESULT: PASS / FAIL / BLOCKED line with test counts; exits 0 / 1 / 2.
 # The simulator is created fresh (never an existing device) and deleted on every exit path.
 #
+# A skip is not a pass, so both legs assert which tests skipped, not just how many. With
+# LIEDAR_GOLDEN_OUT exported the two golden tests write their golden files and skip, and the run
+# still reported 0 failures and exit 0: a green run that pinned nothing and rewrote what it was
+# supposed to be checked against. That variable is now refused outright, and any skip outside the
+# expected set fails the run by name.
+#
 # Environment: LIEDAR_SIM_NAME (simulator name), LIEDAR_DEVICE_TYPE (default: newest iPhone Pro Max/Pro type available),
 #              LIEDAR_TIMEOUT_SECONDS per leg (default 1500), LIEDAR_SKIP_SIMULATOR=1 to run only
 #              the macOS legs.
@@ -38,6 +44,65 @@ counts() {
     | sed -E 's/.*Executed ([0-9]+) tests?, with ([0-9]+ tests? skipped and )?([0-9]+) failures?.*/\1 \3/'
 }
 skips() { grep -cE "Test Case .* skipped" "$1" 2>/dev/null || true; }
+
+# Skipped tests as "Suite/testName", sorted and unique.
+skipped_names() {
+  grep -E "^Test Case .* skipped" "$1" 2>/dev/null \
+    | sed -E "s/^Test Case '-\[[A-Za-z_0-9]+\.([A-Za-z_0-9]+) ([A-Za-z_0-9]+)\]'.*/\1\/\2/" \
+    | sort -u
+}
+
+# Tests that must skip on this run, and why:
+#   RaycasterTests/testRenderTimeIsWithinBudget    a wall-clock budget, asserted only by
+#                                                  tools/timing_check.sh in a release build.
+#   LayoutParityTests/*                            read a consumer capture from outside the repo;
+#                                                  they skip only when LIEDAR_PARITY_CAPTURE is
+#                                                  unset, and must run when it is set.
+# Nothing else may skip. If this list has to change, find out which test moved first.
+required_skips() {
+  echo "RaycasterTests/testRenderTimeIsWithinBudget"
+  if [ -z "${LIEDAR_PARITY_CAPTURE:-}" ]; then
+    echo "LayoutParityTests/testFirstAnchorBinariesMatchTheirMeta"
+    echo "LayoutParityTests/testFirstFrameMetaAndBinariesAgree"
+    echo "LayoutParityTests/testManifestParsesAndAgreesWithTheFolder"
+    echo "LayoutParityTests/testMergedPLYHeaderIsTheASCIIFormatWeWrite"
+  fi
+}
+
+# Allowed but not required, because the host decides: a simulator may have no Metal device, while
+# every macOS host this package supports has one, so on macOS this skip is a real failure.
+optional_skips() {
+  [ "$1" = "simulator" ] && echo "MetalAvailabilityTests/testDeviceShaderAndDepthReadback"
+  return 0
+}
+
+# Prints what is wrong and returns 1 when the skips are not exactly the expected set.
+assert_skips() {
+  local leg="$1" log="$2" bad=0
+  local actual unexpected missing
+  actual="$(skipped_names "$log")"
+  unexpected="$(comm -23 <(printf '%s\n' "$actual" | grep -v '^$') <({ required_skips; optional_skips "$leg"; } | grep -v '^$' | sort -u))"
+  missing="$(comm -13 <(printf '%s\n' "$actual" | grep -v '^$') <(required_skips | sort -u))"
+  if [ -n "$unexpected" ]; then
+    echo "   $leg: these tests skipped and should have run:"
+    printf '%s\n' "$unexpected" | sed 's/^/      /'
+    bad=1
+  fi
+  if [ -n "$missing" ]; then
+    echo "   $leg: these tests were expected to skip and did not:"
+    printf '%s\n' "$missing" | sed 's/^/      /'
+    bad=1
+  fi
+  return "$bad"
+}
+
+# LIEDAR_GOLDEN_OUT makes the two golden tests overwrite Goldens/ and skip instead of comparing.
+# That is a deliberate regeneration step, not a test run, and it must never be what this script
+# reports on.
+if [ -n "${LIEDAR_GOLDEN_OUT:-}" ]; then
+  echo "RESULT: BLOCKED LIEDAR_GOLDEN_OUT=$LIEDAR_GOLDEN_OUT is set, which would rewrite Tests/LieDARTests/Goldens and skip both golden tests. Unset it to test; regenerate a golden with swift test --filter directly, on purpose"
+  exit 2
+fi
 
 # Layout-parity tests read a consumer capture that lives outside the repo. Point the tests at it
 # only when it is really there; otherwise they skip with a named reason.
@@ -72,9 +137,13 @@ if [ "$rc" -ne 0 ] || [ -z "${mac_total:-}" ] || [ "${mac_failed:-1}" -ne 0 ]; t
   exit 1
 fi
 echo "   macOS: $mac_total tests, $mac_failed failures, $mac_skipped skipped"
+if ! assert_skips macOS "$LOGDIR/swift-test.log"; then
+  echo "RESULT: FAIL macOS $mac_total tests, 0 failures, but the skips are not the expected set (log: $LOGDIR/swift-test.log)"
+  exit 1
+fi
 
 if [ "${LIEDAR_SKIP_SIMULATOR:-0}" = "1" ]; then
-  echo "RESULT: PASS macOS $mac_total tests/$mac_failed failures/$mac_skipped skipped; simulator leg skipped by LIEDAR_SKIP_SIMULATOR"
+  echo "RESULT: PASS macOS $mac_total tests/$mac_failed failures/$mac_skipped skipped (the expected set); simulator leg skipped by LIEDAR_SKIP_SIMULATOR"
   exit 0
 fi
 
@@ -108,6 +177,10 @@ if [ "$rc" -ne 0 ] || [ -z "${sim_total:-}" ] || [ "${sim_failed:-1}" -ne 0 ]; t
   exit 1
 fi
 echo "   simulator: $sim_total tests, $sim_failed failures, $sim_skipped skipped"
+if ! assert_skips simulator "$LOGDIR/xcodebuild.log"; then
+  echo "RESULT: FAIL simulator $sim_total tests, 0 failures, but the skips are not the expected set (log: $LOGDIR/xcodebuild.log)"
+  exit 1
+fi
 
-echo "RESULT: PASS macOS $mac_total tests/$mac_failed failures/$mac_skipped skipped; simulator $sim_total tests/$sim_failed failures/$sim_skipped skipped ($TYPE)"
+echo "RESULT: PASS macOS $mac_total tests/$mac_failed failures/$mac_skipped skipped; simulator $sim_total tests/$sim_failed failures/$sim_skipped skipped ($TYPE); skips are the expected set on both legs"
 exit 0
