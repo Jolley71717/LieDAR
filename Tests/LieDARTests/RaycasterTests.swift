@@ -82,6 +82,18 @@ final class RaycasterTests: XCTestCase {
         XCTAssertEqual(corridor.model.classes[Int(side.triangleAt(x: 105, y: 96))], .wall, "corridor pixel (105, 96) is the side wall")
         XCTAssertEqual(side.confidence[96 * 256 + 105], 0,
                        "corridor pixel (105, 96): side wall 3.97 m out at |cos θ| ≈ 0.125 is low by grazing angle")
+
+        // Mid-range pixel, the band the golden cannot see either. Row 155's ray drops
+        // (155.5 − 96) / 178.67 = 0.333 m per metre of depth, so from 1.4 m up it meets the floor
+        // 4.2 m out, past `highRange` (3 m) and inside `mediumRange` (5 m), at
+        // |cos θ| = 0.333 / √(1 + 0.333²) = 0.316, which clears `mediumCosine`. The canonical
+        // frame holds no pixel between 3.5 and 5 m, so `mediumRange` could be cut to 3.5 with
+        // every golden byte unchanged. This pixel is what that change breaks.
+        XCTAssertEqual(side.depthAt(x: 128, y: 155), 4.2, accuracy: 0.02, "mid-range pixel (128, 155) depth")
+        XCTAssertEqual(corridor.model.classes[Int(side.triangleAt(x: 128, y: 155))], .floor,
+                       "mid-range pixel (128, 155) is the floor")
+        XCTAssertEqual(side.confidence[155 * 256 + 128], 1,
+                       "mid-range pixel (128, 155): floor 4.2 m out at |cos θ| ≈ 0.32 is medium by range")
     }
 
     func testCanonicalDepthHasTheGeometryItShould() {
