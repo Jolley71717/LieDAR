@@ -18,6 +18,108 @@ findings that shaped it, and what each phase has to prove before it counts as do
 There is one library product, `LieDAR`. The `LieDARARKit` and `LieDARUI` targets are placeholders
 for phases 1 and 3 and are not products yet, so nothing can depend on them until they hold code.
 
+## Using it
+
+Add the package, then pin an exact version. This is 0.x and the protocol will change when the
+source is wired into a real app.
+
+```swift
+// docs-check: skip
+.package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.1.1")
+```
+
+### Render one depth frame
+
+The smallest useful thing. No files, no capture, just a room and a camera pose.
+
+```swift
+import LieDAR
+import simd
+
+let room = RoomModel.parametric(.canonical)
+let caster = Raycaster(model: room)
+
+// Stand at chest height, two metres in and one across.
+var cameraToWorld = matrix_identity_float4x4
+cameraToWorld.columns.3 = SIMD4<Float>(2, CameraPath.chestHeight, 1, 1)
+
+let frame = caster.render(cameraToWorld: cameraToWorld, intrinsics: .iPhonePro)
+print("\(frame.width) by \(frame.height), \(frame.hitCount) rays hit something")
+print("depth is metres, 0 for a miss; confidence is 0 low, 1 medium, 2 high")
+```
+
+### Record a whole capture, then read it back
+
+`ScriptedCapture.record` runs a source through the frame gate into a recorder, which writes the
+on-disk format in `docs/CAPTURE_FORMAT.md`. Note that frames written is not samples fed: the gate
+drops frames the camera did not move far enough for, exactly as a real capture does.
+
+```swift
+import Foundation
+import LieDAR
+
+let folder = URL.temporaryDirectory.appending(path: "liedar-example")
+let source = SyntheticCaptureSource(configuration: .init(seed: 7, seconds: 3))
+
+let report = try await ScriptedCapture.record(from: source, to: folder)
+print("fed \(report.samplesSeen) samples, wrote \(report.framesWritten) frames")
+
+let reader = CaptureReader(folderURL: folder)
+let manifest = try reader.manifest()
+print("\(manifest.frameCount) frames, \(manifest.meshAnchorCount) anchors, \(manifest.totalFaces) faces")
+```
+
+### The integration pattern
+
+This is the part that decides whether the package is useful to you. Write your capture code
+against `CaptureSource` and never name a concrete source inside it. Then the same code runs
+against ARKit on a device and against a synthetic room on the Simulator, and your tests drive the
+real path rather than a mock of it.
+
+```swift
+import Foundation
+import LieDAR
+
+// Your code. It never mentions ARKit or LieDAR's synthetic source.
+func record(with source: some CaptureSource, to folder: URL) async throws -> Int {
+    guard source.isAvailable else { return 0 }
+    return try await ScriptedCapture.record(from: source, to: folder).framesWritten
+}
+
+// Your app picks the source once, at the edge, and nothing downstream branches on it.
+func makeSource() -> any CaptureSource {
+    #if targetEnvironment(simulator)
+    return SyntheticCaptureSource(configuration: .init(seed: 1, seconds: 2))
+    #else
+    return SyntheticCaptureSource(configuration: .init(seed: 1, seconds: 2))  // your ARKit source here
+    #endif
+}
+```
+
+Gate on `source.isAvailable`, never on a static query such as
+`ARWorldTrackingConfiguration.supportsSceneReconstruction`. That query is false on every
+Simulator, so a static check disables your capture button in the one place this package exists to
+help.
+
+### Performance, and the one thing that will surprise you
+
+The raycaster is deliberately on the CPU, with no Metal, so it returns identical bytes on every
+arm64 machine. That determinism is what makes byte-exact goldens possible. It costs you nothing
+in release and a great deal in debug:
+
+| Build | Time per 256 by 192 depth frame |
+|---|---|
+| Release | about 10 ms |
+| Debug | about 88 ms |
+
+Measured on an M-series Mac. Nine times, which is ordinary for Swift: a debug build keeps bounds
+checks, skips inlining and does no cross-function optimisation, and this is a tight loop over
+49,152 pixels.
+
+`swift test` and Xcode's test action both build debug by default. If a replay looks too slow to
+keep up, check the configuration before you look at anything else. `tools/timing_check.sh`
+asserts the release figure against a 20 ms ceiling so a regression is caught rather than noticed.
+
 ## The synthetic source (phase 2)
 
 `SyntheticCaptureSource(seed:)` is a `CaptureSource` with no hardware behind it:
