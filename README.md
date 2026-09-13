@@ -11,8 +11,12 @@ virtual camera and a deterministic CPU raycaster behind it on the Simulator. The
 thing adopters accept: capture code consumes LieDAR's `Sendable` payload types, not ARKit's.
 
 Status: **pre-release.** The synthetic source works end to end and is tested, so you can point a
-capture at it today. Not wired into a real app yet, and not tagged. `docs/PLAN.md` has the design,
-the red-team findings that shaped it, and what each phase has to prove before it counts as done.
+capture at it today. Not wired into a real app yet. `docs/PLAN.md` has the design, the red-team
+findings that shaped it, and what each phase has to prove before it counts as done;
+`docs/RELEASE_NOTES.md` has what changed in each version.
+
+There is one library product, `LieDAR`. The `LieDARARKit` and `LieDARUI` targets are placeholders
+for phases 1 and 3 and are not products yet, so nothing can depend on them until they hold code.
 
 ## The synthetic source (phase 2)
 

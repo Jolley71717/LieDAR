@@ -58,8 +58,13 @@ final class RoomModelTests: XCTestCase {
         XCTAssertEqual(room.classHistogram()[.floor], (4 * 5 + 2 * 3) * 2 * 4, "two floor rectangles at 0.5 m cells")
     }
 
+    /// A wide sweep, because a narrow one is what let `RoomSpec.random` ship with a trap. The
+    /// window offset was drawn from `0.3...(length - 1.5)` while the wall filter admitted 1.6 m,
+    /// so a wall between 1.6 and 1.8 m inverted the range and the generator crashed on seeds 36,
+    /// 254, 273, 280, 402, 423 and 447. Only the L-cut's short inner faces are ever that short.
+    /// Seeds 1 to 12 all survive, which is exactly how far the old sweep went.
     func testRandomRoomsAreClosedForManySeeds() {
-        for seed: UInt64 in 1...12 {
+        for seed: UInt64 in 1...500 {
             let spec = RoomSpec.random(seed: seed)
             let room = RoomModel.parametric(spec)
             let raycaster = Raycaster(model: room)

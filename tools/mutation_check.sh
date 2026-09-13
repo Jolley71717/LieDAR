@@ -26,8 +26,17 @@
 #   E  replace `seamTolerance: Float = 1e-5` with `= 0` in Raycaster (no second pass for a
 #      ray on a shared edge; the tour's seam pixel reads depth 0 again)
 #      -> RaycasterTests/testRayOnASharedEdgeStillHits must fail on "shared edge"
+#   F  replace `let r = yv + 1.402 * cr` with `let r = yv` in JPEGEncoder (the red channel loses
+#      its chroma term; every 420f colour image comes out wrong and the suite used to stay green,
+#      because the only colour test fed uniform grey where Cb and Cr are both 128)
+#      -> JPEGColorTests/testFourQuadrantColoursSurviveTheYCbCrConversion must fail on
+#         "top left red: R at (16, 16)"
+#   G  replace `mediumRange: Float = 5.0` with `= 3.5` in Raycaster.ConfidenceModel.init (the
+#      medium-by-range band loses 30 % of its depth; the canonical golden cannot see this either,
+#      because that frame holds no pixel between 3.5 and 5 m)
+#      -> RaycasterTests/testConfidenceMatchesGoldenBytes must fail on "mid-range pixel (128, 155)"
 #
-# Before mutating, the five tests are run once unmodified and must pass, so a red suite is
+# Before mutating, every guarded test is run once unmodified and must pass, so a red suite is
 # reported as such rather than as a "successful" mutation.
 #
 # Usage: tools/mutation_check.sh          (takes no arguments; macOS `swift test`, no simulator)
@@ -55,6 +64,8 @@ CASES=(
   "Sources/LieDAR/Source/FrameGate.swift~            guard moved || turned || stale else { return false }~~SyntheticSourceTests/testThreeSecondCaptureWritesTheExpectedFolder~frames written~C: gating threshold"
   "Sources/LieDAR/Render/Raycaster.swift~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.0) {~RaycasterTests/testConfidenceMatchesGoldenBytes~corridor pixel (105, 96)~D: confidence mediumCosine 0.2 -> 0.0"
   "Sources/LieDAR/Render/Raycaster.swift~    private static let seamTolerance: Float = 1e-5~    private static let seamTolerance: Float = 0~RaycasterTests/testRayOnASharedEdgeStillHits~shared edge~E: shared-edge pass seamTolerance 1e-5 -> 0"
+  "Sources/LieDAR/Recorder/JPEGEncoder.swift~                            let r = yv + 1.402 * cr~                            let r = yv~JPEGColorTests/testFourQuadrantColoursSurviveTheYCbCrConversion~top left red: R at (16, 16)~F: red channel loses its chroma term"
+  "Sources/LieDAR/Render/Raycaster.swift~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~        public init(highRange: Float = 3.0, mediumRange: Float = 3.5, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~RaycasterTests/testConfidenceMatchesGoldenBytes~mid-range pixel (128, 155)~G: confidence mediumRange 5.0 -> 3.5"
 )
 
 # Snapshot every file up front; restore all of them on every exit path and prove it.
