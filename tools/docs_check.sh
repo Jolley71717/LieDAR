@@ -46,6 +46,13 @@ PY
 COUNT="$(ls "$WORK/blocks"/*.swift 2>/dev/null | wc -l | tr -d ' ')"
 [ "$COUNT" -eq 0 ] && { echo "RESULT: FAIL no Swift examples found in the documentation"; exit 1; }
 
+# SwiftPM identifies a path dependency by the checkout directory's name, lowercased, which is
+# "liedar" in a normal clone and the branch name in a git worktree. Hardcoding "liedar" made this
+# script fail in every worktree with "unknown package 'liedar'", which reads like a broken example
+# and is not one.
+IDENTITY="$(basename "$ROOT" | tr '[:upper:]' '[:lower:]')"
+echo "  package identity: $IDENTITY"
+
 mkdir -p "$WORK/pkg/Sources/DocsCheck"
 cat > "$WORK/pkg/Package.swift" <<EOF
 // swift-tools-version: 6.0
@@ -53,7 +60,7 @@ import PackageDescription
 let package = Package(
     name: "DocsCheck", platforms: [.macOS(.v13)],
     dependencies: [.package(path: "$ROOT")],
-    targets: [.executableTarget(name: "DocsCheck", dependencies: [.product(name: "LieDAR", package: "liedar")])]
+    targets: [.executableTarget(name: "DocsCheck", dependencies: [.product(name: "LieDAR", package: "$IDENTITY")])]
 )
 EOF
 

@@ -86,6 +86,22 @@ func makeSource() -> any CaptureSource {
 }
 ```
 
+The package brings its own ARKit source if you want one. It is a second product, so the core
+module still links no ARKit at all:
+
+```swift
+// docs-check: skip
+import LieDARARKit   // re-exports LieDAR, so this is the only import you need
+
+func makeSource() -> any CaptureSource {
+    let arkit = ARKitCaptureSource()
+    return arkit.isAvailable ? arkit : SyntheticCaptureSource(seed: 1)
+}
+```
+
+`docs/ARKIT_SOURCE.md` covers what it does, the three decisions behind its shape, and an honest
+list of what only a physical device can prove about it.
+
 Gate on `source.isAvailable`, never on a static query such as
 `ARWorldTrackingConfiguration.supportsSceneReconstruction`. That query is false on every
 Simulator, so a static check disables your capture button in the one place this package exists to
@@ -188,8 +204,10 @@ legitimate choice and this library is not for you.
 
 ## Compatibility
 
-LieDAR does not link ARKit, so an ARKit change cannot break your build through this package. What
-an ARKit change can do is make the values it mirrors wrong, and that is what this table is for.
+The `LieDAR` module does not link ARKit, so an ARKit change cannot break your build through it.
+ARKit is confined to the separate `LieDARARKit` product, which you depend on only if you want the
+package's on-device source; nothing in `LieDAR` reaches for it. What an ARKit change can do is
+make the values `LieDAR` mirrors wrong, and that is what this table is for.
 
 | What LieDAR mirrors | Value it uses | Matches ARKit as of |
 |---|---|---|

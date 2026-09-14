@@ -35,6 +35,31 @@
 #      medium-by-range band loses 30 % of its depth; the canonical golden cannot see this either,
 #      because that frame holds no pixel between 3.5 and 5 m)
 #      -> RaycasterTests/testConfidenceMatchesGoldenBytes must fail on "mid-range pixel (128, 155)"
+#   H  replace the sample stream's `bufferingNewest(sampleBufferSize)` with `.unbounded` in
+#      CaptureStreams.open (a consumer that fell behind sees every frame, so ARKit would be asked
+#      to keep frames alive that nobody is going to read)
+#      -> CaptureStreamsTests/testSampleBufferKeepsTheNewestFrameForASlowConsumer must fail on
+#         "buffering newest 1"
+#   I  replace `byID.removeValue(forKey: id)` with `_ = id` in AnchorTable.apply (a removed
+#      anchor stays in the mesh snapshot)
+#      -> AnchorTableTests/testRemovedAnchorsLeaveTheTable must fail on
+#         "held anchor count after a removal"
+#   J  replace `y * bytesPerRow` with `y * rowBytes` in BufferCopy.rows (rows are read at the
+#      packed pitch instead of the buffer's own, which is the classic padding bug: every row
+#      after the first is shifted)
+#      -> BufferCopyTests/testRowsDropThePaddingBetweenRows must fail on "row padding is dropped"
+#   K  read the two-byte index big-endian in BufferCopy.faceIndices (faces read as garbage on
+#      every device that hands over UInt16 indices; index 1 becomes 256)
+#      -> BufferCopyTests/testFaceIndicesAreWidenedFromTwoBytesAndReadStraightFromFour must fail
+#         on "two-byte indices widened to UInt32"
+#   L  replace `i * stride` with `i * 12` in BufferCopy.vertices (a vertex buffer whose stride is
+#      wider than a vertex is read as if it were packed)
+#      -> BufferCopyTests/testVerticesAreReadThroughAStrideWiderThanAVertex must fail on
+#         "xyz interleaved"
+#   M  replace `width * bytesPerPixel` with `width` in BufferCopy.colorPlane (the interleaved
+#      Cb,Cr plane loses half of every row, and ColorPlanes then refuses it)
+#      -> BufferCopyTests/testChromaPlaneCountsPairsAndKeepsTwoBytesPerPair must fail on
+#         "a row is two bytes per pair"
 #
 # Before mutating, every guarded test is run once unmodified and must pass, so a red suite is
 # reported as such rather than as a "successful" mutation.
@@ -66,6 +91,12 @@ CASES=(
   "Sources/LieDAR/Render/Raycaster.swift~    private static let seamTolerance: Float = 1e-5~    private static let seamTolerance: Float = 0~RaycasterTests/testRayOnASharedEdgeStillHits~shared edge~E: shared-edge pass seamTolerance 1e-5 -> 0"
   "Sources/LieDAR/Recorder/JPEGEncoder.swift~                            let r = yv + 1.402 * cr~                            let r = yv~JPEGColorTests/testFourQuadrantColoursSurviveTheYCbCrConversion~top left red: R at (16, 16)~F: red channel loses its chroma term"
   "Sources/LieDAR/Render/Raycaster.swift~        public init(highRange: Float = 3.0, mediumRange: Float = 5.0, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~        public init(highRange: Float = 3.0, mediumRange: Float = 3.5, highCosine: Float = 0.5, mediumCosine: Float = 0.2) {~RaycasterTests/testConfidenceMatchesGoldenBytes~mid-range pixel (128, 155)~G: confidence mediumRange 5.0 -> 3.5"
+  "Sources/LieDAR/Source/CaptureStreams.swift~        let policy = AsyncStream<CameraSample>.Continuation.BufferingPolicy.bufferingNewest(sampleBufferSize)~        let policy = AsyncStream<CameraSample>.Continuation.BufferingPolicy.unbounded~CaptureStreamsTests/testSampleBufferKeepsTheNewestFrameForASlowConsumer~buffering newest 1~H: sample buffer bufferingNewest -> unbounded"
+  "Sources/LieDAR/Anchors/AnchorTable.swift~            byID.removeValue(forKey: id)~            _ = id~AnchorTableTests/testRemovedAnchorsLeaveTheTable~held anchor count after a removal~I: anchor removal does nothing"
+  "Sources/LieDAR/Payloads/BufferCopy.swift~                    .copyMemory(from: base.advanced(by: y * bytesPerRow), byteCount: rowBytes)~                    .copyMemory(from: base.advanced(by: y * rowBytes), byteCount: rowBytes)~BufferCopyTests/testRowsDropThePaddingBetweenRows~row padding is dropped~J: rows read at the packed pitch, not the buffer's"
+  "Sources/LieDAR/Payloads/BufferCopy.swift~            for i in 0..<indexCount { out.append(UInt32(start.loadUnaligned(fromByteOffset: i * 2, as: UInt16.self))) }~            for i in 0..<indexCount { out.append(UInt32(UInt16(bigEndian: start.loadUnaligned(fromByteOffset: i * 2, as: UInt16.self)))) }~BufferCopyTests/testFaceIndicesAreWidenedFromTwoBytesAndReadStraightFromFour~two-byte indices widened to UInt32~K: two-byte face indices read big-endian"
+  "Sources/LieDAR/Payloads/BufferCopy.swift~            let vertex = start.advanced(by: i * stride)~            let vertex = start.advanced(by: i * 12)~BufferCopyTests/testVerticesAreReadThroughAStrideWiderThanAVertex~xyz interleaved~L: vertex stride ignored"
+  "Sources/LieDAR/Payloads/BufferCopy.swift~        let rowBytes = width * bytesPerPixel~        let rowBytes = width~BufferCopyTests/testChromaPlaneCountsPairsAndKeepsTwoBytesPerPair~a row is two bytes per pair~M: colour row loses its bytes per pixel"
 )
 
 # Snapshot every file up front; restore all of them on every exit path and prove it.
