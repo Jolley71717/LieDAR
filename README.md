@@ -1,32 +1,22 @@
 # LieDAR
 
-**It lies to your app about LiDAR.** Run iOS LiDAR and ARKit apps on the Simulator: replay recorded
-captures or scan a synthetic room. Depth, confidence, mesh anchors and camera poses, no hardware
-required.
+**It lies to your app about LiDAR.** Run your iOS LiDAR and ARKit capture code on the Simulator.
+Replay a recorded capture, or walk a synthetic room.
 
-ARKit cannot be fed: it has no input path and its frame and anchor types have no public
-initializers, and on the Simulator it does not run at all. LieDAR replaces ARKit *as your app sees
-it*, with a small `CaptureSource` façade. ARKit sits behind it on a device, and a synthetic room, a
-virtual camera and a deterministic CPU raycaster behind it on the Simulator. The cost is the one
-thing adopters accept: capture code consumes LieDAR's `Sendable` payload types, not ARKit's.
+| Depth | Confidence | Classification |
+|---|---|---|
+| ![depth](docs/images/depth.png) | ![confidence](docs/images/confidence.png) | ![classes](docs/images/classes.png) |
 
-Status: **pre-release.** The synthetic source works end to end and is tested, so you can point a
-capture at it today. Not wired into a real app yet. `docs/PLAN.md` has the design, the red-team
-findings that shaped it, and what each phase has to prove before it counts as done;
-`docs/RELEASE_NOTES.md` has what changed in each version.
-
-There is one library product, `LieDAR`. The `LieDARARKit` and `LieDARUI` targets are placeholders
-for phases 1 and 3 and are not products yet, so nothing can depend on them until they hold code.
-
-## Using it
-
-Add the package, then pin an exact version. This is 0.x and the protocol will change when the
-source is wired into a real app.
+That is one frame from a room that does not exist, at 256 by 192, the resolution an iPhone Pro's
+LiDAR reports. Metres per pixel on the left, the three confidence bands in the middle, per-face
+classification on the right: wall, floor, ceiling, window, table.
 
 ```swift
 // docs-check: skip
 .package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.1.1")
 ```
+
+## Using it
 
 ### Render one depth frame
 
@@ -120,7 +110,7 @@ checks, skips inlining and does no cross-function optimisation, and this is a ti
 keep up, check the configuration before you look at anything else. `tools/timing_check.sh`
 asserts the release figure against a 20 ms ceiling so a regression is caught rather than noticed.
 
-## The synthetic source (phase 2)
+## What the synthetic source gives you
 
 `SyntheticCaptureSource(seed:)` is a `CaptureSource` with no hardware behind it:
 
@@ -128,7 +118,7 @@ asserts the release figure against a 20 ms ceiling so a regression is caught rat
   furniture, an optional L-shape) meshed into classified triangles, deterministic by seed; or
   any ASCII OBJ.
 - `Raycaster` runs on the CPU with no Metal: depth, confidence and a triangle id per pixel, bit-identical on
-  every arm64 machine, about 12 ms per 256 × 192 frame in a release build on an M-series Mac.
+  every arm64 machine, about 10 ms per 256 by 192 frame in a release build on an M-series Mac.
 - `VirtualCamera` walks a scripted path at chest height with a little sway, iPhone Pro intrinsics,
   and a tracking script (`notAvailable` → `limited.initializing` → `normal`, with
   `limited.excessiveMotion` when the script moves too fast).
@@ -137,15 +127,16 @@ asserts the release figure against a 20 ms ceiling so a regression is caught rat
   loop closure.
 - `DegradationModel` leaves 30 % of faces unlabelled, confuses floor with table, and adds per-anchor noise.
 
-`ScriptedCapture.record(from:to:)` runs any source through the PLAN's write gate (`normal`
-tracking and ≥ 0.15 m / 10° / 0.5 s since the last written frame) into `CaptureRecorder`, so
+`ScriptedCapture.record(from:to:)` runs any source through the same write gate a real
+capture uses (`normal` tracking, and at least 0.15 m or 10 degrees or 0.5 s since the last
+written frame) into `CaptureRecorder`, so
 **`frameCount` is not the number of frames fed**: a 3-second tour at 30 Hz feeds 91 samples and
 writes 13 frames. `tools/make_fixture.sh <seed>` writes `Fixtures/synthetic-<seed>/` the same way
-and proves two runs are byte-identical; `tools/mutation_check.sh` proves the realism tests fail
-when their code is removed. What the source cannot reproduce, meaning sensor noise, drift,
-relocalisation, lighting, reflective failures and RoomPlan, is spelled out in `docs/REALISM.md`.
+and proves two runs are byte-identical; What the source cannot reproduce, meaning sensor noise,
+drift, relocalisation, lighting, reflective failures and RoomPlan, is spelled out in
+`docs/REALISM.md`.
 
-## The example app (phase 2)
+## The example app
 
 `Example/` is a small capture app built on the package, and the black box the end-to-end tests
 drive. Home list, a Start/Stop screen with a live HUD of frames written, anchors held and seconds
@@ -169,12 +160,70 @@ is load-bearing by deleting the single line that publishes a capture to the list
 the journey to fail on its named assertion, then restoring the file byte-identical. See
 `docs/EXAMPLE_APP.md`.
 
+## Do I have to adopt your protocol?
+
+Yes, at the capture boundary, and that is the whole cost. It is worth being blunt about it,
+because it is the reason to walk away if you are going to.
+
+ARKit cannot be fed. It has no input path, `ARFrame` and `ARMeshAnchor` have no public
+initialisers, and on the Simulator ARKit does not run at all. Nothing can change that. So a
+library either replaces ARKit as your app sees it, or it does nothing useful. LieDAR replaces it:
+your capture code consumes `CameraSample` and `MeshAnchorPayload` instead of `ARFrame` and
+`ARMeshAnchor`.
+
+What that does and does not mean:
+
+- **It is a boundary, not a framework.** One protocol, `CaptureSource`, and a handful of `Sendable`
+  value types. Your app's own model, views and storage are untouched. In practice the change is
+  confined to the file that owns your `ARSession`.
+- **You keep ARKit on device.** Your `ARKitCaptureSource` is yours, it holds a real `ARSession`,
+  and it is the one place ARKit appears. LieDAR does not wrap, proxy or intercept it.
+- **You can stop at replay.** If you only want your existing recorded captures to run in tests,
+  use `CaptureRecorder` and `CaptureReader` and ignore the rest. The synthetic room is optional.
+- **The package imports no ARKit at all.** Not one file. It compiles on macOS, where ARKit does
+  not exist, which is how its own tests run without a simulator.
+
+If you are not willing to own the source protocol, use a physical device for every test. That is a
+legitimate choice and this library is not for you.
+
+## Compatibility
+
+LieDAR does not link ARKit, so an ARKit change cannot break your build through this package. What
+an ARKit change can do is make the values it mirrors wrong, and that is what this table is for.
+
+| What LieDAR mirrors | Value it uses | Matches ARKit as of |
+|---|---|---|
+| Depth map | `Float32` metres, tightly packed, 256 by 192 | iOS 26 |
+| Confidence | `UInt8`, 0 low, 1 medium, 2 high, same shape as depth | iOS 26 |
+| Mesh classification | `UInt8` raw values 0 to 7: none, wall, floor, ceiling, table, seat, window, door | iOS 26 |
+| Camera intrinsics | 3 by 3, column major, pixel origin top left | iOS 26 |
+| Frame timestamp | Seconds on a monotonic clock, differences only | iOS 26 |
+| Camera transform | 4 by 4 column major, right handed, y up | iOS 26 |
+
+If Apple adds a ninth mesh classification, this package keeps compiling and starts producing data
+that is missing a case. That is the failure mode to watch, and it is why the table names a version
+rather than claiming to track ARKit.
+
+| | |
+|---|---|
+| Swift tools | 6.0, language mode 6 |
+| Platforms | iOS 16 and later, macOS 13 and later |
+| Built and tested against | Xcode 26.1.1 in CI, Xcode 26.5 locally |
+
+**Support policy while this is 0.x.** The minor version is the breaking one: 0.1 to 0.2 may change
+the protocol, 0.1.1 to 0.1.2 will not. Pin an exact version. A release that removes something says
+so at the top of its notes, and `docs/RELEASE_NOTES.md` keeps the list. Nothing is deprecated
+silently. Once the protocol has survived a real adopter it goes to 1.0 and normal semantic
+versioning applies.
+
 ## What it will never do
 
-Make ARKit run on the Simulator; produce ARKit's own types; reproduce sensor noise, drift,
-relocalisation, lighting or reflective-surface failures with fidelity; test RoomPlan-based apps
-(RoomPlan consumes an `ARSession` directly). It moves the physical-device lane from "the only
-test" to "the confirmation", and no further.
+- Make ARKit run on the Simulator, or produce ARKit's own types.
+- Reproduce sensor noise, drift, relocalisation, lighting or reflective-surface failures with any
+  fidelity. Synthetic depth is too clean. `docs/REALISM.md` is specific about each one.
+- Test a RoomPlan app. RoomPlan takes an `ARSession` directly and cannot be faced.
+- Replace a device. It turns the device lane from the only test into the confirmation, and no
+  further than that.
 
 ## License
 
