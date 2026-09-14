@@ -151,11 +151,17 @@ public struct SimulatorPreview: View {
     public init(source: SyntheticCaptureSource, mode: PreviewMode = .classification,
                 resolution: PixelSize = RoomPreviewModel.defaultResolution) {
         self.source = source
-        let view = source.makeCaptureView() as? SyntheticCaptureView
+        // Both of these are built inside the autoclosure StateObject takes, so they run once
+        // for the life of the view rather than on every re-evaluation of the parent's body.
+        _preview = StateObject(wrappedValue: RoomPreviewModel(view: Self.view(for: source), mode: mode,
+                                                             resolution: resolution))
+        _driver = StateObject(wrappedValue: WalkDriver(walker: Self.walker(for: source)))
+    }
+
+    static func view(for source: SyntheticCaptureSource) -> SyntheticCaptureView {
+        source.makeCaptureView() as? SyntheticCaptureView
             ?? SyntheticCaptureView(raycaster: source.raycaster,
                                     intrinsics: source.configuration.camera.intrinsics) { [source] in source.latestPose }
-        _preview = StateObject(wrappedValue: RoomPreviewModel(view: view, mode: mode, resolution: resolution))
-        _driver = StateObject(wrappedValue: WalkDriver(walker: Self.walker(for: source)))
     }
 
     static func walker(for source: SyntheticCaptureSource) -> Walker {
