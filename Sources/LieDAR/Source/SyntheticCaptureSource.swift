@@ -80,6 +80,8 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
     private var state: State = .idle
     private var producer: Task<Void, Never>?
     private var loopClosureApplied = false
+    private var lastPose: simd_float4x4
+    private var driven: simd_float4x4?
 
     private let sampleStream: AsyncStream<CameraSample>
     private let sampleContinuation: AsyncStream<CameraSample>.Continuation
@@ -93,6 +95,7 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
         raycaster = Raycaster(model: configuration.room)
         camera = VirtualCamera(path: configuration.path, configuration: configuration.camera)
         chunker = AnchorChunker(model: configuration.room, configuration: configuration.chunker)
+        lastPose = camera.pose(at: 0)
         (sampleStream, sampleContinuation) = AsyncStream.makeStream(of: CameraSample.self)
         (anchorStream, anchorContinuation) = AsyncStream.makeStream(of: AnchorEvent.self)
     }
@@ -141,15 +144,36 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
         lock.withLock { chunker.anchors() }.map(configuration.degradation.apply)
     }
 
-    /// Placeholder until phase 3 (interactive preview). It currently renders nothing:
-    /// `SyntheticCaptureView` is an empty marker object with no platform view behind it, so a
-    /// host that puts it on screen gets a blank area where the camera feed would be. Phase 3
-    /// replaces it with a RealityKit `.nonAR` / SceneKit render of the room from the current
-    /// pose, and wires `raycast(screenPoint:)` to that view.
-    public func makeCaptureView() -> CaptureViewRepresentable { SyntheticCaptureView() }
+    /// Everything a preview needs to draw the room from the pose this source is rendering from.
+    /// It carries no platform view of its own: `LieDARUI` has the SwiftUI view that reads it, so
+    /// a host that links only `LieDAR` gets the data and draws it however it likes.
+    public func makeCaptureView() -> CaptureViewRepresentable {
+        SyntheticCaptureView(raycaster: raycaster, intrinsics: configuration.camera.intrinsics) { [self] in
+            latestPose
+        }
+    }
 
-    /// Phase 3 wires this to the preview; until then there is no screen to hit.
+    /// Still nothing on screen for this module to hit. `LieDARUI` draws the preview and knows
+    /// its size and mode, so the screen-point-to-world step belongs there and is not wired yet.
+    /// `docs/PREVIEW.md` says so under what the preview does not do.
     public func raycast(screenPoint: CGPoint) -> SIMD3<Float>? { nil }
+
+    // MARK: Pose
+
+    /// The camera-to-world the preview should draw from: the pose a person is driving when
+    /// there is one, otherwise the pose the last tick rendered from. Before the first tick that
+    /// is where the scripted path starts, so a source that has not been started still has a
+    /// room to show.
+    public var latestPose: simd_float4x4 { lock.withLock { driven ?? lastPose } }
+
+    /// A pose a person is walking with `SimulatorControls`. While it is set, every tick renders
+    /// from it instead of the scripted path. The tick's index, time and tracking state still
+    /// come from the script, so a consumer sees the same tracking sequence whether or not
+    /// anyone is at the controls. Set it to `nil` to hand the camera back to the path.
+    public var drivenPose: simd_float4x4? {
+        get { lock.withLock { driven } }
+        set { lock.withLock { driven = newValue } }
+    }
 
     // MARK: Introspection
 
@@ -170,7 +194,13 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
                 if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1e9)) }
                 if Task.isCancelled { break }
             }
-            let tick = camera.tick(index)
+            let scripted = camera.tick(index)
+            let tick: VirtualCamera.Tick = lock.withLock {
+                var t = scripted
+                if let driven { t.cameraToWorld = driven }
+                lastPose = t.cameraToWorld
+                return t
+            }
 
             // Discover anchors from what this tick sees.
             let coarse = raycaster.render(cameraToWorld: tick.cameraToWorld, intrinsics: intrinsics,
@@ -254,8 +284,30 @@ public final class SyntheticCaptureSource: CaptureSource, @unchecked Sendable {
     }
 }
 
-/// The view a `SyntheticCaptureSource` offers: an empty marker that renders nothing. Phase 3
-/// (interactive preview) replaces it with a rendered view of the room.
-public final class SyntheticCaptureView: CaptureViewRepresentable {
-    public init() {}
+/// The view a `SyntheticCaptureSource` offers. It holds the raycaster, the camera and a way to
+/// read the pose the source is rendering from, which is everything needed to draw the room and
+/// nothing about how to draw it. `LieDARUI.RoomPreview` is the SwiftUI view that reads this.
+public final class SyntheticCaptureView: CaptureViewRepresentable, Sendable {
+    public let raycaster: Raycaster
+    public let intrinsics: CameraIntrinsics
+    private let poseProvider: @Sendable () -> simd_float4x4
+
+    public init(raycaster: Raycaster, intrinsics: CameraIntrinsics,
+                pose: @escaping @Sendable () -> simd_float4x4) {
+        self.raycaster = raycaster
+        self.intrinsics = intrinsics
+        poseProvider = pose
+    }
+
+    /// One classification per triangle, indexed by `Raycaster.Frame.triangleIDs`.
+    public var classes: [MeshClassification] { raycaster.model.classes }
+
+    /// The camera-to-world to draw from, read fresh every time.
+    public var pose: simd_float4x4 { poseProvider() }
+
+    /// Renders the room from `pose` at `resolution`. Small resolutions are for the screen; the
+    /// frames a capture writes come from the source, not from here.
+    public func render(resolution: PixelSize) -> Raycaster.Frame {
+        raycaster.render(cameraToWorld: pose, intrinsics: intrinsics, resolution: resolution)
+    }
 }
