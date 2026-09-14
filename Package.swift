@@ -11,11 +11,13 @@ let package = Package(
     ],
     products: [
         .library(name: "LieDAR", targets: ["LieDAR"]),
-        // LieDARARKit and LieDARUI are deliberately not products yet. Both targets hold a
-        // placeholder that re-exports LieDAR and nothing else, so a consumer who depended on
-        // either one expecting an ARKit capture source or a preview view would get a re-export
-        // and no warning. The targets stay, so they keep building as they are written; the
-        // products come back with the code. `tools/products_check.sh` holds the rule.
+        // The preview view and SimulatorControls, added back as a product now that the target
+        // holds them. See `tools/products_check.sh` for the rule a product has to meet.
+        .library(name: "LieDARUI", targets: ["LieDARUI"]),
+        // LieDARARKit is deliberately not a product yet. Its target holds a placeholder that
+        // re-exports LieDAR and nothing else, so a consumer who depended on it expecting an
+        // ARKit capture source would get a re-export and no warning. The target stays, so it
+        // keeps building as the real thing is written; the product comes back with the code.
         // `tools/make_fixture.sh` runs this to write Fixtures/synthetic-<seed>/.
         .executable(name: "liedar-fixture", targets: ["LieDARFixtureTool"]),
     ],
@@ -25,11 +27,11 @@ let package = Package(
         .target(name: "LieDAR"),
         // Phase 1: ARKitCaptureSource behind `#if canImport(ARKit)`. Placeholder for now.
         .target(name: "LieDARARKit", dependencies: ["LieDAR"]),
-        // Phase 3: preview view and SimulatorControls overlay. Placeholder for now.
+        // Phase 3: the preview view and the SimulatorControls overlay. SwiftUI, never ARKit.
         .target(name: "LieDARUI", dependencies: ["LieDAR"]),
         // Phase 2: the fixture generator, a thin command line over SyntheticCaptureSource + ScriptedCapture.
         .executableTarget(name: "LieDARFixtureTool", dependencies: ["LieDAR"]),
-        .testTarget(name: "LieDARTests", dependencies: ["LieDAR"], resources: [.copy("Goldens")]),
+        .testTarget(name: "LieDARTests", dependencies: ["LieDAR", "LieDARUI"], resources: [.copy("Goldens")]),
     ],
     swiftLanguageModes: [.v6]
 )

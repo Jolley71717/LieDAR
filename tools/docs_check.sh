@@ -47,13 +47,27 @@ COUNT="$(ls "$WORK/blocks"/*.swift 2>/dev/null | wc -l | tr -d ' ')"
 [ "$COUNT" -eq 0 ] && { echo "RESULT: FAIL no Swift examples found in the documentation"; exit 1; }
 
 mkdir -p "$WORK/pkg/Sources/DocsCheck"
+
+# SwiftPM takes the identity of a local path dependency from the last path component, so a
+# clone or a git worktree in a directory not called "liedar" needs that name, not a constant.
+# Hardcoding "liedar" made every example fail in a worktree with one misleading error.
+PKG_ID="$(basename "$ROOT" | tr '[:upper:]' '[:lower:]')"
+
+# Every library product, so an example can import LieDARUI as readily as LieDAR. Taken from
+# Package.swift rather than listed here, so a new product does not need this script edited.
+DEPS=""
+for p in $(grep -oE '\.library\(name: *"[^"]+"' Package.swift | sed -E 's/.*"([^"]+)"/\1/'); do
+  DEPS="$DEPS.product(name: \"$p\", package: \"$PKG_ID\"), "
+done
+[ -n "$DEPS" ] || { echo "RESULT: BLOCKED found no .library products in Package.swift to compile examples against"; exit 2; }
+
 cat > "$WORK/pkg/Package.swift" <<EOF
 // swift-tools-version: 6.0
 import PackageDescription
 let package = Package(
-    name: "DocsCheck", platforms: [.macOS(.v13)],
+    name: "DocsCheck", platforms: [.iOS(.v16), .macOS(.v13)],
     dependencies: [.package(path: "$ROOT")],
-    targets: [.executableTarget(name: "DocsCheck", dependencies: [.product(name: "LieDAR", package: "liedar")])]
+    targets: [.executableTarget(name: "DocsCheck", dependencies: [$DEPS])]
 )
 EOF
 
