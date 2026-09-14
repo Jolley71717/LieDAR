@@ -1,6 +1,64 @@
 # Release notes
 
-## 0.1.1 (unreleased)
+## 0.2.0 (unreleased)
+
+### Breaking
+
+**The package is two products now, and the synthetic room has moved out of `LieDAR` into
+`LieDARSynthetic`.** If you use `RoomSpec`, `RoomModel`, `Raycaster`, `CameraIntrinsics`,
+`VirtualCamera`, `CameraPath`, `AnchorChunker`, `DegradationModel`, `SeededRandom` or
+`SyntheticCaptureSource`, you have to add a product and change an import.
+
+In your `Package.swift`, change this:
+
+```swift
+// docs-check: skip
+.package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.1.1"),
+// ...
+.product(name: "LieDAR", package: "LieDAR")
+```
+
+to this:
+
+```swift
+// docs-check: skip
+.package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.2.0"),
+// ...
+.product(name: "LieDARSynthetic", package: "LieDAR")
+```
+
+Then change `import LieDAR` to `import LieDARSynthetic` in the files that name any of the types
+above. `LieDARSynthetic` re-exports `LieDAR`, so one import still covers both and nothing else in
+those files has to change. No type was renamed and no signature changed.
+
+If you only record and replay real captures, keep `.product(name: "LieDAR", ...)` and change
+nothing at all. That is the point of the split: you now stop at replay in the link map as well as
+in the API.
+
+`LieDARUI` and `LieDARARKit` are unchanged as products. `LieDARUI` now sits on `LieDARSynthetic`
+and re-exports it, because the preview draws a `Raycaster.Frame`; `LieDARARKit` sits on `LieDAR`
+alone, because recording a real sensor needs nothing synthetic.
+
+**Why.** Meshwise adopted the package and its release binary grew by 306,432 bytes. The link map
+attributed 309,964 of those to LieDAR and named `Raycaster.render`,
+`SyntheticCaptureSource.produce`, `RoomModel.parametric` and `AnchorChunker.observe` among the
+symbols it kept. The debug gate was
+intact, so a release build could not reach any of it; a Swift package builds as one object file, so
+it linked anyway. README.md already promised "You can stop at replay", and that promise was true of
+the API and false of the binary. Splitting the target is what makes it true.
+
+### Added
+
+- `tools/layering_check.sh` holds the boundary. It reads the declared graph from
+  `swift package dump-package` and fails if the `LieDAR` target gains a dependency on
+  `LieDARSynthetic`, if a core file imports `LieDARSynthetic`, `LieDARUI` or `LieDARARKit`, or if
+  a type declared in the synthetic target is named anywhere in core code.
+- `simd_float4x4.forwardAngleDegrees(to:)` in the core. `FrameGate` needs the angle between two
+  poses to decide whether the camera turned far enough to write a frame, and the gate applies to a
+  real ARKit capture, so the maths could not stay with the virtual camera.
+  `VirtualCamera.angleDegrees(_:_:)` still exists and calls it.
+
+## 0.1.1
 
 ### Breaking
 

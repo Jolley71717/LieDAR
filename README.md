@@ -13,8 +13,24 @@ classification on the right: wall, floor, ceiling, window, table.
 
 ```swift
 // docs-check: skip
-.package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.1.1")
+.package(url: "https://github.com/Jolley71717/LieDAR", exact: "0.2.0")
 ```
+
+Then take the products you want. There are two you choose between:
+
+```swift
+// docs-check: skip
+// Record and replay real captures: the payload types, the on-disk format, CaptureRecorder,
+// CaptureReader and the CaptureSource protocol. Nothing that invents a sensor.
+.product(name: "LieDAR", package: "LieDAR")
+
+// The fake sensor as well: rooms, the raycaster, the virtual camera, SyntheticCaptureSource.
+// It brings LieDAR with it, so take this one on its own if you want both.
+.product(name: "LieDARSynthetic", package: "LieDAR")
+```
+
+Two more sit on top: `LieDARUI` draws what the synthetic camera sees, and `LieDARARKit` is the
+on-device source. Take either only if you want it.
 
 ## Using it
 
@@ -23,7 +39,7 @@ classification on the right: wall, floor, ceiling, window, table.
 The smallest useful thing. No files, no capture, just a room and a camera pose.
 
 ```swift
-import LieDAR
+import LieDARSynthetic
 import simd
 
 let room = RoomModel.parametric(.canonical)
@@ -46,7 +62,7 @@ drops frames the camera did not move far enough for, exactly as a real capture d
 
 ```swift
 import Foundation
-import LieDAR
+import LieDARSynthetic   // re-exports LieDAR, so this is the only import you need
 
 let folder = URL.temporaryDirectory.appending(path: "liedar-example")
 let source = SyntheticCaptureSource(configuration: .init(seed: 7, seconds: 3))
@@ -68,9 +84,10 @@ real path rather than a mock of it.
 
 ```swift
 import Foundation
-import LieDAR
+import LieDARSynthetic
 
-// Your code. It never mentions ARKit or LieDAR's synthetic source.
+// Your code. It never mentions ARKit or LieDAR's synthetic source, so the function below
+// compiles against the LieDAR product alone.
 func record(with source: some CaptureSource, to folder: URL) async throws -> Int {
     guard source.isAvailable else { return 0 }
     return try await ScriptedCapture.record(from: source, to: folder).framesWritten
@@ -86,12 +103,13 @@ func makeSource() -> any CaptureSource {
 }
 ```
 
-The package brings its own ARKit source if you want one. It is a second product, so the core
+The package brings its own ARKit source if you want one. It is a separate product, so the core
 module still links no ARKit at all:
 
 ```swift
 // docs-check: skip
-import LieDARARKit   // re-exports LieDAR, so this is the only import you need
+import LieDARARKit      // re-exports LieDAR; it does not pull in the synthetic room
+import LieDARSynthetic  // only because the fallback below wants a fake sensor
 
 func makeSource() -> any CaptureSource {
     let arkit = ARKitCaptureSource()
@@ -128,6 +146,9 @@ asserts the release figure against a 20 ms ceiling so a regression is caught rat
 
 ## What the synthetic source gives you
 
+Everything in this section is the `LieDARSynthetic` product. Leave it out and none of it is
+compiled or linked into your app.
+
 `SyntheticCaptureSource(seed:)` is a `CaptureSource` with no hardware behind it:
 
 - `RoomModel` builds a parametric room (width, depth, ceiling, doors and windows, a bulkhead,
@@ -143,12 +164,13 @@ asserts the release figure against a 20 ms ceiling so a regression is caught rat
   loop closure.
 - `DegradationModel` leaves 30 % of faces unlabelled, confuses floor with table, and adds per-anchor noise.
 
-- `LieDARUI` draws what that camera sees and lets a person walk it, so a Simulator build shows a
-  room rather than a black rectangle. WASD to move, QE or the arrows to turn, RF or the arrows to
-  look, on-screen buttons for all of it, and a picker for the three colourings below:
+- `LieDARUI` is a third product. It draws what that camera sees and lets a person walk it, so
+  a Simulator build shows a room rather than a black rectangle. WASD to move, QE or the arrows
+  to turn, RF or the arrows to look, on-screen buttons for all of it, and a picker for the three
+  colourings below:
 
 ```swift
-import LieDARUI
+import LieDARUI   // re-exports LieDAR and LieDARSynthetic
 import SwiftUI
 
 // The capture screen of a Simulator build: the room, and the controls to walk it.
@@ -229,7 +251,11 @@ What that does and does not mean:
 - **You keep ARKit on device.** Your `ARKitCaptureSource` is yours, it holds a real `ARSession`,
   and it is the one place ARKit appears. LieDAR does not wrap, proxy or intercept it.
 - **You can stop at replay.** If you only want your existing recorded captures to run in tests,
-  use `CaptureRecorder` and `CaptureReader` and ignore the rest. The synthetic room is optional.
+  depend on the `LieDAR` product and use `CaptureRecorder` and `CaptureReader`. The room, the
+  raycaster and the virtual camera are in `LieDARSynthetic`, a product you do not take, so they
+  are not in your binary at all. Before 0.2.0 this paragraph was true of the API and false of the
+  link map: a Swift package builds as one object file, and a release binary that adopted LieDAR
+  grew by 306,432 bytes of code a release build could never run.
 - **The package imports no ARKit at all.** Not one file. It compiles on macOS, where ARKit does
   not exist, which is how its own tests run without a simulator.
 
@@ -240,8 +266,10 @@ legitimate choice and this library is not for you.
 
 The `LieDAR` module does not link ARKit, so an ARKit change cannot break your build through it.
 ARKit is confined to the separate `LieDARARKit` product, which you depend on only if you want the
-package's on-device source; nothing in `LieDAR` reaches for it. What an ARKit change can do is
-make the values `LieDAR` mirrors wrong, and that is what this table is for.
+package's on-device source; nothing in `LieDAR` reaches for it. The same holds downward: `LieDAR`
+names nothing in `LieDARSynthetic`, and `tools/layering_check.sh` fails the build if it starts
+to. What an ARKit change can do is make the values `LieDAR` mirrors wrong, and that is what this
+table is for.
 
 | What LieDAR mirrors | Value it uses | Matches ARKit as of |
 |---|---|---|
@@ -263,8 +291,9 @@ rather than claiming to track ARKit.
 | Built and tested against | Xcode 26.1.1 in CI, Xcode 26.5 locally |
 
 **Support policy while this is 0.x.** The minor version is the breaking one: 0.1 to 0.2 may change
-the protocol, 0.1.1 to 0.1.2 will not. Pin an exact version. A release that removes something says
-so at the top of its notes, and `docs/RELEASE_NOTES.md` keeps the list. Nothing is deprecated
+the protocol or the product list, and did; 0.2.0 to 0.2.1 will not. Pin an exact version. A
+release that removes something says so at the top of its notes, and `docs/RELEASE_NOTES.md` keeps
+the list. Nothing is deprecated
 silently. Once the protocol has survived a real adopter it goes to 1.0 and normal semantic
 versioning applies.
 
