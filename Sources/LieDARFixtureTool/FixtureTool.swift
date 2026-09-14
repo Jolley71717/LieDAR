@@ -1,5 +1,5 @@
 import Foundation
-import LieDAR
+import LieDARSynthetic
 
 /// `liedar-fixture --seed N --out DIR [--seconds S] [--depth WxH] [--rate R]`
 ///

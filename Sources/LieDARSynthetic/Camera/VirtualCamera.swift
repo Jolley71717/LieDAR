@@ -203,10 +203,9 @@ public struct VirtualCamera: Sendable, Equatable {
         return simd_float4x4(columns: (SIMD4(right, 0), SIMD4(up, 0), SIMD4(-forward, 0), SIMD4(eye, 1)))
     }
 
-    /// The rotation between two poses, in degrees.
+    /// The rotation between two poses, in degrees. The maths is `simd_float4x4`'s in the core
+    /// module, because `FrameGate` needs the same answer for a real capture.
     public static func angleDegrees(_ a: simd_float4x4, _ b: simd_float4x4) -> Float {
-        let fa = -a.columns.2.xyz, fb = -b.columns.2.xyz
-        let c = max(-1, min(1, simd_dot(simd_normalize(fa), simd_normalize(fb))))
-        return acos(c) * 180 / .pi
+        a.forwardAngleDegrees(to: b)
     }
 }

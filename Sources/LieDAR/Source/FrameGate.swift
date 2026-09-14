@@ -27,7 +27,7 @@ public struct FrameGate: Sendable, Equatable {
         guard trackingState.isNormal else { return false }
         if let last = lastTransform {
             let moved = simd_length(transform.translation - last.translation) >= minimumDistance
-            let turned = VirtualCamera.angleDegrees(last, transform) >= minimumAngleDegrees
+            let turned = last.forwardAngleDegrees(to: transform) >= minimumAngleDegrees
             let stale = timestamp - lastTimestamp >= maximumInterval
             guard moved || turned || stale else { return false }
         }

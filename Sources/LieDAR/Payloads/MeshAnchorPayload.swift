@@ -127,6 +127,18 @@ extension simd_float4x4 {
     public func transformPoint(_ p: SIMD3<Float>) -> SIMD3<Float> {
         (self * SIMD4<Float>(p, 1)).xyz
     }
+
+    /// The angle in degrees between where this pose looks and where `other` looks, both being
+    /// camera-to-world matrices whose forward is −Z.
+    ///
+    /// `FrameGate` needs this to decide whether the camera turned far enough to write a frame,
+    /// and the gate applies to a real ARKit capture, so the maths lives here in the core rather
+    /// than with the synthetic camera that also uses it.
+    public func forwardAngleDegrees(to other: simd_float4x4) -> Float {
+        let a = -columns.2.xyz, b = -other.columns.2.xyz
+        let c = max(-1, min(1, simd_dot(simd_normalize(a), simd_normalize(b))))
+        return acos(c) * 180 / .pi
+    }
 }
 
 extension simd_float3x3 {

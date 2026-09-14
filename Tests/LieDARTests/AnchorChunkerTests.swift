@@ -2,6 +2,7 @@ import Foundation
 import simd
 import XCTest
 @testable import LieDAR
+import LieDARSynthetic
 
 /// The chunker's anchor set for the canonical room and the canonical tour, asserted by count
 /// and bounds; overlap, churn and loop closure each by their observable effect.

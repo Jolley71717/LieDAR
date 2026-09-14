@@ -2,6 +2,7 @@ import Foundation
 import simd
 import XCTest
 @testable import LieDAR
+import LieDARSynthetic
 
 /// End to end: a scripted capture through `ScriptedCapture` (gate + `CaptureRecorder`) into a
 /// temp folder, asserted with values not presence, then parsed whole by `CaptureReader`.

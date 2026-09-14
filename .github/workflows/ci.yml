@@ -87,6 +87,23 @@ jobs:
         if: always()
         run: |
           grep -E "^RESULT: " journeys.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+  layering:
+    name: core does not reach into the synthetic module
+    runs-on: macos-15
+    timeout-minutes: 15
+    # No `needs`. A boundary that has been crossed is worth knowing about on its own, and this
+    # job is a dump-package and three greps, so it answers in under a minute.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pin Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.1.app && xcodebuild -version
+      - name: Layering
+        shell: bash
+        run: bash tools/layering_check.sh | tee layering.log
+      - name: Record verdict
+        if: always()
+        run: |
+          grep -E "^RESULT: " layering.log | tail -1 >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
   docs:
     name: documentation examples compile
     runs-on: macos-15

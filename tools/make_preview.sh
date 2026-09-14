@@ -7,6 +7,10 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="$PWD"
 command -v swift >/dev/null 2>&1 || { echo "RESULT: BLOCKED no swift toolchain"; exit 2; }
 
+# SwiftPM identifies a path dependency by the checkout directory's name, lowercased, which is the
+# branch name in a git worktree, so the id is read rather than hardcoded.
+PKG_ID="$(basename "$ROOT" | tr '[:upper:]' '[:lower:]')"
+
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/pkg/Sources/Preview"
 cp tools/preview/main.swift "$WORK/pkg/Sources/Preview/main.swift"
@@ -16,7 +20,7 @@ import PackageDescription
 let package = Package(
     name: "Preview", platforms: [.macOS(.v13)],
     dependencies: [.package(path: "$ROOT")],
-    targets: [.executableTarget(name: "Preview", dependencies: [.product(name: "LieDAR", package: "liedar")])]
+    targets: [.executableTarget(name: "Preview", dependencies: [.product(name: "LieDARSynthetic", package: "$PKG_ID")])]
 )
 PKG
 if ! OUT="$(cd "$WORK/pkg" && swift build -c release 2>&1)"; then

@@ -1,5 +1,5 @@
 import Foundation
-import LieDAR
+import LieDARSynthetic
 
 /// Which synthetic capture the app runs.
 ///
