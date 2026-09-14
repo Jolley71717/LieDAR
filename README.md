@@ -127,6 +127,40 @@ asserts the release figure against a 20 ms ceiling so a regression is caught rat
   loop closure.
 - `DegradationModel` leaves 30 % of faces unlabelled, confuses floor with table, and adds per-anchor noise.
 
+- `LieDARUI` draws what that camera sees and lets a person walk it, so a Simulator build shows a
+  room rather than a black rectangle. WASD to move, QE or the arrows to turn, RF or the arrows to
+  look, on-screen buttons for all of it, and a picker for the three colourings below:
+
+```swift
+import LieDARUI
+import SwiftUI
+
+// The capture screen of a Simulator build: the room, and the controls to walk it.
+struct CaptureScreen: View {
+    let source: SyntheticCaptureSource
+
+    var body: some View {
+        SimulatorPreview(source: source)
+    }
+}
+
+// Or, for an app that switches sources, ask the source what to put on screen and let
+// CapturePreview work out how to draw it. The screen does not change when the source does.
+struct AnySourceScreen: View {
+    let source: any CaptureSource
+
+    var body: some View {
+        CapturePreview(source.makeCaptureView(), mode: .depth)
+    }
+}
+
+_ = CaptureScreen(source: SyntheticCaptureSource(seed: 7))
+```
+
+  The preview colours a frame with the same table `tools/preview/main.swift` writes the images
+  above with, so a screenshot and this readme agree. `docs/PREVIEW.md` has the modes, the
+  controls, the wall rules and what the preview deliberately does not do.
+
 `ScriptedCapture.record(from:to:)` runs any source through the same write gate a real
 capture uses (`normal` tracking, and at least 0.15 m or 10 degrees or 0.5 s since the last
 written frame) into `CaptureRecorder`, so
