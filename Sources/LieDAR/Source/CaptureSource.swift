@@ -33,9 +33,19 @@ public protocol CaptureSource: AnyObject, Sendable {
     /// Mesh anchors being added, updated and removed as reconstruction proceeds.
     var anchorEvents: AsyncStream<AnchorEvent> { get }
 
+    /// The producing session failing or being interrupted. A source with nothing to report
+    /// leaves this finished, which is what the default implementation does.
+    var sessionEvents: AsyncStream<CaptureSessionEvent> { get }
+
     /// Every mesh anchor the source currently holds, in full. Called at stop time to write the
     /// mesh; this is the only way to get it.
     func meshSnapshot() -> [MeshAnchorPayload]
+
+    /// An opaque relocalization blob to store beside the capture as `worldmap.bin`, or `nil`
+    /// when the source has none. On ARKit this is an archived `ARWorldMap`; a synthetic or
+    /// replayed room has nothing to relocalize against, so the default returns `nil`. Called
+    /// once, at stop time, before `stop()`.
+    func worldMapData() async -> Data?
 
     /// The on-screen view for this source: the camera feed on a device, a rendered preview on
     /// the simulator. The concrete type is platform-specific and lives in a UI module.
@@ -44,6 +54,43 @@ public protocol CaptureSource: AnyObject, Sendable {
     /// The world-space point under a screen point of the capture view, for placing annotations,
     /// or `nil` when nothing is there.
     func raycast(screenPoint: CGPoint) -> SIMD3<Float>?
+}
+
+extension CaptureSource {
+    /// Nothing to report. A source that can fail or be interrupted overrides this.
+    public var sessionEvents: AsyncStream<CaptureSessionEvent> { .finished }
+
+    /// No relocalization data. `ARKitCaptureSource` overrides this.
+    public func worldMapData() async -> Data? { nil }
+}
+
+/// What went wrong when a source could not start.
+public enum CaptureSourceError: Error, Equatable, Sendable {
+    /// The machine cannot produce this kind of capture. On ARKit that is a device without
+    /// scene reconstruction, which includes every Simulator.
+    case unavailable
+    /// The camera exists but the user has not allowed it.
+    case cameraNotAuthorized
+}
+
+/// The producing session failing or being interrupted: a phone call, the app backgrounded, the
+/// camera taken by something else. Separate from `TrackingState`, which is a property of a
+/// frame that did arrive.
+public enum CaptureSessionEvent: Sendable, Equatable {
+    /// The session stopped with an error; the string is what it reported.
+    case failed(String)
+    /// Frames have stopped arriving and may resume.
+    case interrupted
+    /// Frames are arriving again.
+    case interruptionEnded
+}
+
+extension AsyncStream {
+    /// An empty stream that has already finished: what a source hands out before `start()` and
+    /// after `stop()`, so a consumer's `for await` loop ends instead of hanging.
+    public static var finished: AsyncStream<Element> {
+        AsyncStream { $0.finish() }
+    }
 }
 
 /// Marker for whatever a `CaptureSource` puts on screen. UI modules (`LieDARUI`, an app's own

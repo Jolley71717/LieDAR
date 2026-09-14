@@ -129,6 +129,22 @@ The unit job reported `RESULT: BLOCKED no Package.swift/tools/test.sh yet` and s
 which is the intended behaviour before phase 0. The first run failed in 0 s because `hashFiles`
 is not permitted in a job-level `if`; gating moved to a step.
 
+**Phase 1, package half, on branch `arkit-source` (2026-09-13).** `ARKitCaptureSource` is in, and
+`LieDARARKit` is a product again. `CaptureSource` gained `sessionEvents` and `worldMapData()`,
+both with defaults, so the synthetic and null sources are unchanged. Three pieces that would
+naturally have lived inside the ARKit wrapper are in the core module instead, which is RT-2
+applied to this type: `CaptureStreams` (open, close, buffering policy), `AnchorTable` (which
+anchors are held) and `BufferCopy` (row padding, vertex stride, index width, class padding). All
+three are tested on macOS and all three have mutation cases. `docs/ARKIT_SOURCE.md` carries the
+seventeen-item list of what only a physical device can prove, because ARKit delivers no frames on
+a Simulator and `ARFrame` and `ARMeshAnchor` have no public initialisers.
+
+One assumption in this plan turned out to be wrong. `#if canImport(ARKit)` is not enough: the
+macOS SDK ships an ARKit.framework, so the guard is true on a Mac and the file was compiled there,
+where `swift build` reported `cannot find type 'ARSession' in scope` eleven times (Xcode 26.5,
+macOS 26.5 SDK). The guard is `canImport(ARKit) && os(iOS) && !targetEnvironment(macCatalyst)`.
+Still not `targetEnvironment(simulator)`, for the reason RT-10 gives.
+
 **Phase 2 merged and CI-proven (2026-09-12 23:30).** Run #34725673637 on `macos-15`/Xcode
 26.1.1, all five jobs green:
 
@@ -215,7 +231,7 @@ LieDAR/
   Sources/LieDAR/         CaptureSource, payloads, RoomModel, VirtualCamera, Raycaster,
                                 AnchorChunker, DegradationModel, ReplayCaptureSource,
                                 SyntheticCaptureSource, CaptureRecorder, format spec types
-  Sources/LieDARARKit/    ARKitCaptureSource  (#if canImport(ARKit))
+  Sources/LieDARARKit/    ARKitCaptureSource  (#if canImport(ARKit) && os(iOS))
   Sources/LieDARUI/       SimulatorControls overlay, preview view (RealityKit .nonAR/SceneKit)
   Tests/LieDARTests/      unit + golden (CPU raycaster is deterministic → exact goldens)
   Example/                      COMMITTED Example.xcodeproj (no xcodegen on runners):

@@ -48,8 +48,10 @@ COUNT="$(ls "$WORK/blocks"/*.swift 2>/dev/null | wc -l | tr -d ' ')"
 
 mkdir -p "$WORK/pkg/Sources/DocsCheck"
 
-# SwiftPM takes the identity of a local path dependency from the last path component, so a
-# clone or a git worktree in a directory not called "liedar" needs that name, not a constant.
+# SwiftPM identifies a path dependency by the checkout directory's name, lowercased, which is
+# "liedar" in a normal clone and the branch name in a git worktree. Hardcoding "liedar" made this
+# script fail in every worktree with "unknown package", which reads like a broken example and is
+# not one.
 # Hardcoding "liedar" made every example fail in a worktree with one misleading error.
 PKG_ID="$(basename "$ROOT" | tr '[:upper:]' '[:lower:]')"
 
