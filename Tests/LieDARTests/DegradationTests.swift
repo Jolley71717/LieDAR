@@ -2,6 +2,7 @@ import Foundation
 import simd
 import XCTest
 @testable import LieDAR
+import LieDARSynthetic
 
 final class DegradationTests: XCTestCase {
     let room = RoomModel.parametric(.canonical)

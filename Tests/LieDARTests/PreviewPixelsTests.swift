@@ -2,6 +2,7 @@ import Foundation
 import simd
 import XCTest
 @testable import LieDAR
+@testable import LieDARSynthetic
 import LieDARUI
 
 /// The frame-to-pixels step is pinned to exact bytes, because it is the one part of the preview

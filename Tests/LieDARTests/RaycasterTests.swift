@@ -2,6 +2,7 @@ import Foundation
 import simd
 import XCTest
 @testable import LieDAR
+import LieDARSynthetic
 
 /// The raycaster is deterministic, so its depth and confidence for the canonical room and pose
 /// are pinned to exact bytes, not to a tolerance: `Goldens/canonical-depth.bin`

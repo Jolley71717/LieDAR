@@ -33,8 +33,12 @@ targets:
     sources:
       - path: ExampleApp
     dependencies:
+      # The core, for the format and the recorder, and the synthetic product for the fake sensor
+      # the Simulator runs on. An app that only replays recorded captures takes the first alone.
       - package: LieDAR
         product: LieDAR
+      - package: LieDAR
+        product: LieDARSynthetic
     info:
       path: ExampleApp/Info.plist
       properties:

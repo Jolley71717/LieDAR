@@ -8,7 +8,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import simd
-import LieDAR
+import LieDARSynthetic
 
 let outDir = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "docs/images")
 try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		15CDD896E0574623488B6FBA /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90802C879B87B43881A1BF45 /* CaptureScreen.swift */; };
 		19B1C9CF923ABFCB5108B6C8 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012DEE347FAAE870318BB9FD /* Accessibility.swift */; };
+		2260240E781CD4D37451305C /* LieDARSynthetic in Frameworks */ = {isa = PBXBuildFile; productRef = F643D3CCB35302D24AA67071 /* LieDARSynthetic */; };
 		2B654670FBB88FA6BB2B4E96 /* JourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9473B2FA6A3F211EE497A176 /* JourneyTests.swift */; };
 		32A7907736A04E2766EA244E /* ExampleAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EFC0F92D7A94458CA5C94D0 /* ExampleAppMain.swift */; };
 		5A2F3116EC28DCC705BFD35F /* LieDAR in Frameworks */ = {isa = PBXBuildFile; productRef = 400895AF8960ED6EF0F3CF53 /* LieDAR */; };
@@ -55,6 +56,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5A2F3116EC28DCC705BFD35F /* LieDAR in Frameworks */,
+				2260240E781CD4D37451305C /* LieDARSynthetic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,6 +159,7 @@
 			name = ExampleApp;
 			packageProductDependencies = (
 				400895AF8960ED6EF0F3CF53 /* LieDAR */,
+				F643D3CCB35302D24AA67071 /* LieDARSynthetic */,
 			);
 			productName = ExampleApp;
 			productReference = 7A53516ECC83C5AABFEEA484 /* ExampleApp.app */;
@@ -488,6 +491,10 @@
 		400895AF8960ED6EF0F3CF53 /* LieDAR */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LieDAR;
+		};
+		F643D3CCB35302D24AA67071 /* LieDARSynthetic */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LieDARSynthetic;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

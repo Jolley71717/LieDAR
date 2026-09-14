@@ -6,5 +6,10 @@
 //
 // SwiftUI and Combine only. This module never imports ARKit, and the `LieDAR` core never
 // imports either one.
+//
+// The preview draws a `Raycaster.Frame` and the controls walk a `SyntheticCaptureSource`, so
+// this module sits on `LieDARSynthetic` and re-exports it along with the core. `import LieDARUI`
+// is the only import a preview needs.
 
 @_exported import LieDAR
+@_exported import LieDARSynthetic

@@ -1,5 +1,5 @@
 import Foundation
-import LieDAR
+import LieDARSynthetic
 
 /// Everything an adopting app writes between Start and Stop, in one place.
 ///
